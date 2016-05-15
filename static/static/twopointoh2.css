@@ -1,0 +1,167 @@
+div {
+	position: absolute;
+}
+
+#floor {
+	background-image: url("images/latest/floor.jpg");
+	width: 734px;
+	height: 175px;
+	background-size: contain;
+	top: 284px;
+}
+#stage {
+	background-image: url("images/latest/stage.png");
+	width: 734px;
+	height: 310px;
+	background-size: contain;
+}
+#lights2Normal {
+	background-image: url("images/latest/lights2Normal.png");
+	width: 734px;
+	height: 287px;
+	background-size: contain;
+}
+#lights0Add {
+	background-image: url("images/latest/lights0Add.png");
+	width: 734px;
+	height: 287px;
+	background-size: contain;
+}
+#stage-bg {
+	background-image: url("images/latest/stage-bg.png");
+	width: 734px;
+	height: 292px;
+	background-size: contain;
+}
+#curtain {
+	background-image: url("images/latest/curtain.png");
+	width: 345px;
+	height: 200px;
+	background-size: contain;
+	top: 60px;
+	left: 220px;
+}
+#side-menu {
+	width: 220px;
+	height: 25px;
+	top: 28px;
+	left: 520px;
+}
+#chat-nav {
+	background-image: url("images/latest/chat-nav.png");
+	width: 220px;
+	height: 25px;
+	background-size: cover;
+	top: 0px;
+	left: 0px;
+}
+#dial {
+	background-image: url("images/latest/dial.png");
+	width: 55px;
+	height: 54px;
+	background-size: contain;
+	top: 75px;
+	left: 349px;
+}
+#needle {
+	background-image: url("images/latest/needle.png");
+	width: 5px;
+	height: 41px;
+	background-size: contain;
+	top: 80px;
+	left: 374px;
+}
+#board {
+	background-image: url("images/latest/board.png");
+	width: 265px;
+	height: 70px;
+	background-size: contain;
+	top: 95px;
+	left: 245px;
+}
+#progress {
+	background-image: url("images/latest/progress.png");
+	width: 114px;
+	height: 5px;
+	background-size: contain;
+	top: 145px;
+	left: 320px;
+}
+#up {
+	background-image: url("images/latest/up.png");
+	width: 31px;
+	height: 54px;
+	background-size: contain;
+	top: 102px;
+	left: 472px;
+}
+#up:hover {
+	background-image: url("images/latest/up-hover.png");
+}
+#up:active {
+	background-image: url("images/latest/up-active.png");
+}
+#down {
+	background-image: url("images/latest/down.png");
+	width: 31px;
+	height: 54px;
+	background-size: contain;
+	top: 102px;
+	left: 252px;
+}
+#down:hover {
+	background-image: url("images/latest/down-hover.png");
+}
+#down:active {
+	background-image: url("images/latest/down-active.png");
+}
+#dj-table {
+	background-image: url("images/latest/dj-table.png");
+	width: 259px;
+	height: 30px;
+	background-size: contain;
+	top: 240px;
+	left: 245px;
+}
+#laptop-windows {
+	background-image: url("images/latest/laptop-windows.png");
+	width: 35px;
+	height: 25px;
+	background-size: contain;
+	top: 220px;
+	left: 260px;
+}
+#laptop-android {
+	background-image: url("images/latest/laptop-android.png");
+	width: 16px;
+	height: 30px;
+	background-size: contain;
+	top: 215px;
+	left: 316px;
+}
+#laptop-mac {
+	background-image: url("images/latest/laptop-mac.png");
+	width: 35px;
+	height: 25px;
+	background-size: contain;
+	top: 221px;
+	left: 355px;
+}
+#laptop-iphone {
+	background-image: url("images/latest/laptop-iphone.png");
+	width: 15px;
+	height: 30px;
+	background-size: contain;
+	top: 215px;
+	left: 415px;
+}
+#laptop-chrome {
+	background-image: url("images/latest/laptop-chrome.png");
+	width: 35px;
+	height: 25px;
+	background-size: contain;
+	top: 220px;
+	left: 455px;
+}
+
+/** Chat Nav **/
