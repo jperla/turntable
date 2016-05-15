@@ -695,7 +695,7 @@ if (TEST) {
             assert(guestB.numPeers() == 2, 'Guest B not connected')
             assert(guestC.numPeers() == 2, 'Guest C not connected')
             console.log('C connected to A!')
-          }, 20)
+          }, 1000)
         })
         guestCFirstPeer.signal(guestBOffer)
       })
