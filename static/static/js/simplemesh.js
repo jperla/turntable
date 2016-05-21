@@ -68,8 +68,9 @@ SimplePeer.prototype.encodeJSON = function(message) {
 
 SimplePeer.prototype.sendJSON = function(message) {
   var self = this
-  self._debug('sendJSON: %o', message)
-  self.send(self.encodeJSON(message))
+  var jsonMessage = self.encodeJSON(message)
+  self._debug('sendJSON (%i): %o', jsonMessage.length, message)
+  self.send(jsonMessage)
 }
 
 SimplePeer.prototype.parseJSON = function(rawData) {
@@ -114,6 +115,11 @@ MeshNode.prototype.lastUnconnectedPeer = function() {
   return self._lastUnconnectedPeer
 }
 
+MeshNode.prototype.setName = function(name) {
+  var self = this
+  self.name = name
+}
+
 MeshNode.prototype.createPeer = function(isInitiator, opts) {
   var self = this
   self._debug("Making new peer");
@@ -127,7 +133,9 @@ MeshNode.prototype.numPeers = function() {
 
 MeshNode.prototype.broadcastToMeshThroughHost = function(encodedMessageDictionary) {
   var self = this
-  self.hostPeer.sendJSON({'action':'broadcast', 'message': encodedMessageDictionary})
+  if (self.hostPeer) {
+    self.hostPeer.sendJSON({'action':'broadcast', 'message': encodedMessageDictionary})
+  }
 }
 
 MeshNode.prototype.sendToAllPeers = function(encodedMessageDictionary, exceptPeer) {
@@ -164,14 +172,13 @@ MeshNode.prototype.isNodeHost = function() {
 
 MeshNode.prototype.informPeer = function(peer, message) {
   var self = this
-  self.anchor(function(err, anchor) {
-    var signalingServer = (anchor ? anchor.signalingServer : null)
+  self.getAnchorURL(function(err, anchorURL) {
     var wholeMessage = {
       'action': 'inform',
       'message': message,
       'name': self.name,
       'meshNodeId': self.id,
-      'anchor': signalingServer
+      'anchorURL': anchorURL
     }
     peer.sendJSON(wholeMessage)
     self._debug('Inform sent: %o', wholeMessage)
@@ -332,36 +339,94 @@ MeshNode.prototype.addDownloadPeer = function(p, hash, signalFunc, callback) {
   return p
 }
 
-MeshNode.prototype.anchor = function(callback) {
+MYANCHOR = 'anchorURL'
+
+MeshNode.prototype.getAnchorURL = function(callback) {
   var self = this
-  self.anchorStore.getItem('anchor', callback)
+  self.anchorStore.getItem(MYANCHOR, callback)
 }
 
-MeshNode.prototype.saveAnchor = function(meshNodeId, anchorSignalingServerURL) {
+MeshNode.prototype.saveAnchorURL = function(anchorURL) {
   var self = this
-  var anchor = {'id': meshNodeId, 'signalingServer': anchorSignalingServerURL}
-  self.anchorStore.setItem('anchor',
-                           anchor,
+  self.anchorStore.setItem(MYANCHOR,
+                           anchorURL,
                            function(err) {
                              if (err) {
-                               self._debug("[ERROR] Could not save anchor %o: %s", anchor, err)
+                               self._debug("[ERROR] Could not save anchor url %o: %s", anchorURL, err)
                              } else {
-                               self._debug("Saved anchor %o", anchor)
+                               self._debug("Saved anchor url %o", anchorURL)
                              }
   })
 }
 
+FOREIGNANCHORS = 'allMyForeignAnchors'
+
+MeshNode.prototype.getForeignAnchors = function(callback) {
+  var self = this
+  self.anchorStore.getItem(FOREIGNANCHORS, function(err, foreignAnchors) {
+    if (err) {
+      self._debug("Error retrieving foreign anchors: %s", err)
+    }
+
+    if (!foreignAnchors) {
+      foreignAnchors = []
+    }
+
+    callback(foreignAnchors)
+  })
+}
+
+MeshNode.prototype.saveForeignAnchor = function(meshNodeId, signalingServer) {
+  var self = this
+  // TODO: validate anchor format
+  var anchor = {'id': meshNodeId, 'signalingServer': signalingServer}
+  assert(typeof signalingServer === "string", "signaling server for anchor not a string")
+  assert(typeof meshNodeId === "string", "meshNodeId for anchor not a string")
+  self.getForeignAnchors(function(foreignAnchors) {
+    self._debug('Got existing foreign anchors: %o', foreignAnchors)
+    // TODO: possible race condition
+
+    // add if it does not exist
+    EXISTS = false
+    for(var i=0; i<foreignAnchors.length; i++) {
+      if (foreignAnchors[i].id === anchor.id && 
+          foreignAnchors[i].signalingServer === anchor.signalingServer) {
+        EXISTS = true
+        break
+      }
+    }
+
+    if (EXISTS) {
+      self._debug('Foreign anchor already exists: %o', anchor)
+    } else {
+      foreignAnchors.push(anchor)
+      self._debug('Will save foreign anchors: %o', foreignAnchors)
+      self.anchorStore.setItem(FOREIGNANCHORS,
+                               foreignAnchors,
+                               function(err) {
+                                 if (err) {
+                                   self._debug("[ERROR] Could not add foreign anchor %o to %o: %s",
+                                               anchor, foreignAnchors, err)
+                                 } else {
+                                   self._debug("Saved foreign anchor %o to %o", anchor, foreignAnchors)
+                                 }
+      })
+    }
+
+  })
+}
+
+
 MeshNode.prototype.listenToSignalingServer = function() {
   var self = this
-  self.anchor(function(err, anchor) {
+  self.getAnchorURL(function(err, anchorURL) {
     if (err) {
       self._debug("[BYOSS] could not find anchor: %s", err)
     }
    
-    if (anchor) {
-      var signalingServer = anchor.signalingServer
-      self._debug('Listening for BYOSS anchor applicants: %s', signalingServer)
-      socket = io(signalingServer)
+    if (anchorURL) {
+      self._debug('Listening for BYOSS anchor applicants: %s', anchorURL)
+      socket = io(anchorURL)
       // TODO: do this after connect
       socket.emit('listen', self.id)
 
@@ -382,32 +447,26 @@ MeshNode.prototype.listenToSignalingServer = function() {
   })
 }
 
-MeshNode.prototype.connectThroughAnchorSignalingServer = function() {
+MeshNode.prototype.connectThroughAnchor = function(anchor) {
   var self = this
-  self.anchor(function(err, anchor) {
-    if(err) {
-      self._debug('[BYOSS] No anchor: %s', err)
-    }
+  if (anchor) {
+    var destination = anchor.id
+    var signalingServer = anchor.signalingServer
+    socket = io(signalingServer)
+    self._debug('[BYOSS] anchorMeshNodeId: %s signalingServer %o', destination, signalingServer)
+    var autoHost = self.addPeer(self.createPeer(true), function(sdp) {
+      var offer = {'source': self.id, 
+                   'destination': destination,
+                   'sdp': sdp}
+      socket.emit('offer', offer)
+      self._debug('[BYOSS] Emitted offer: %o', offer)
+    })
 
-    if (anchor) {
-      var destination = anchor.id
-      var signalingServer = anchor.signalingServer
-      socket = io(signalingServer)
-      self._debug('[BYOSS] anchorMeshNodeId: %s signalingServer %s', destination, signalingServer)
-      var autoHost = self.addPeer(self.createPeer(true), function(sdp) {
-        var offer = {'source': self.id, 
-                     'destination': destination,
-                     'sdp': sdp}
-        socket.emit('offer', offer)
-        self._debug('[BYOSS] Emitted offer: %o', offer)
-      })
-
-      socket.on('answer', function(answer) {
-        self._debug('[BYOSS] Received answer: %o', answer)
-        autoHost.signal(answer.sdp)
-      })
-    }
-  })
+    socket.on('answer', function(answer) {
+      self._debug('[BYOSS] Received answer: %o', answer)
+      autoHost.signal(answer.sdp)
+    })
+  }
 }
 
 MeshNode.prototype.addPeer = function(p, signalFunc) {
@@ -441,8 +500,9 @@ MeshNode.prototype.addPeer = function(p, signalFunc) {
       self._debug('Inform received: %o', data)
       self.meshNodeIdToPeer[data.meshNodeId] = p
 
-      if (data.anchor) {
-        self.saveAnchor(data.meshNodeId, data.anchor)
+      if (data.anchorURL) {
+        self._debug('Will save foreign anchor: %o', data.anchorURL)
+        self.saveForeignAnchor(data.meshNodeId, data.anchorURL)
       }
 
       if (data.message.type == 'isHost') {

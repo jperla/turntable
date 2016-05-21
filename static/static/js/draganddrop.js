@@ -60,13 +60,16 @@ var draganddrop = function(dropAreaId, songdb, dragOverCallback, metadataCallbac
                   progressBar.val(maxPercentLocalUpload)
 
                   // store to local storage
-                  songdb.addSong(e.target.result, function(err, metadata) {
-                    if (err) {
-                      console.log('Could not upload that song')
-                    }
+                  songdb.addSong(e.target.result, 
+                                 {'source': 'local',
+                                  'temporary': false},
+                    function(err, metadata) {
+                      if (err) {
+                        console.log('Could not upload that song')
+                      }
 
-                    var id3 = metadata.id3
-                    metadataCallback(metadata)
+                      var id3 = metadata.id3
+                      metadataCallback(metadata)
                   })
               }
           },

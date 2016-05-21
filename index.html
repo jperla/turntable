@@ -18,6 +18,8 @@
 
 <script type="text/javascript">
 var sendSong;
+var searchNetwork;
+var downloadSong;
 
 var REDUCE = false;
 
@@ -61,171 +63,232 @@ var newHost = function(isInitiator) {
 
 var saveSignalingServer 
 var chat
+var connectToSignalingAnchor
 
 jQuery(function() {
   var songdb = SongDB({'id': 'ttfm'})
-
-  var isMeshHost = (location.hash === '#host')
-
-  if (isMeshHost) {
-    $('#name').val("Host")
-  } else {
-    if (location.hash) {
-      $('#name').val(location.hash.split('#', 2)[1])
+  songdb.ensureUpgraded(function(err) {
+    if (err) {
+      console.log("Error upgrading songdb: %s", err)
     }
-  }
 
-  var url = (isMeshHost ? 'http://shielded-woodland-44092.herokuapp.com/' : null)
-  meshNode = MeshNode(SimplePeerFactory(),
-                          {'isHost': isMeshHost,
-                           'name': getName(),
-                           'id': getName()
-                          })
+    var isMeshHost = (location.hash === '#host')
 
-  var socket = null
-  if (isMeshHost) {
-    meshNode.listenToSignalingServer()
-  } else {
-    meshNode.connectThroughAnchorSignalingServer()
-  }
-
-  meshNode.anchor(function(err, anchor) {
-    if (anchor) {
-      $('#signalingServer').val(anchor.signalingServer)
-    }
-  })
-  saveSignalingServer = function() {
-    meshNode.saveAnchor(meshNode.getId(), $('#signalingServer').val())
-  }
-
-  function playSong(dataURL) {
-    $('#audio').html("")
-    var g = $('<div></div>')
-    g.append('<audio id="mysong" autoplay src="' + dataURL + '">')
-    $('#audio').append(g)
-  }
-
-  meshNode.on('action', function(metadata) {
-    meshNode._debug('action: %o', metadata)
-    var peer = metadata.peer
-    var data = metadata.data
-    if (data.action == 'play') {
-      meshNode._debug('play: %o', data)
-      songdb.findSongDataURL(data.hash, function(err, songDataURL) {
-        if (songDataURL) {
-          meshNode._debug('using cached local data for hash %o', data.hash)
-          playSong(songDataURL)
-        } else {
-          meshNode._debug('play: %o (err %s)', data, err)
-          var downloadPeer = meshNode.addDownloadPeer(meshNode.createPeer(true), data.hash, function(sdp) {
-            var m1 = {'action': 'ask',
-                      'hash': data.hash,
-                      'offer': sdp,
-                      'source': data.source,
-                      'destination': meshNode.getId()}
-            meshNode._debug('sendJSON: %o', m1)
-            peer.sendJSON(m1)
-          }, function(p, hash, downloadedDataURL) {
-            assert(Sha256.hash(downloadedDataURL) === hash)
-            meshNode._debug('downloaded data len: %i', downloadedDataURL.length)
-            playSong(downloadedDataURL)
-            songdb.addSong(downloadedDataURL, function(err, id3) {
-              console.log("Added song to db: %o", id3)
-            })
-          })
-        }
-      })
-    } else if (data.action == 'ask') {
-      songdb.findSongDataURL(data.hash, function(err, songDataURL) {
-        if (err) {
-          meshNode._debug('Could not find dataURL for hash %s: %o', hash, err)
-          // Checking other peers nearby
-          var peerWithSong = meshNode.peerByMeshNodeId(data.source)
-          if (peerWithSong) {
-            meshNode._debug('sendJSON: %o', data)
-            peerWithSong.sendJSON(data)
-          }
-        } else {
-          var uploadPeer = meshNode.addUploadPeer(meshNode.createPeer(false), data.hash, songDataURL,
-            function(sdp) {
-              var m2 = {'action': 'download',
-                        'hash': data.hash,
-                        'destination': data.destination,
-                        'answer': sdp}
-              meshNode._debug('sendJSON: %o', m2)
-              peer.sendJSON(m2)
-          })
-          uploadPeer.signal(data.offer)
-        }
-      })
-    } else if (data.action == 'download') {
-      if (meshNode.getId() == data.destination) {
-        meshNode._debug('received download initation of song: %o', data)
-        meshNode.signalDownloadPeer(data.hash, data.answer)
-      } else {
-          var destinationPeer = meshNode.peerByMeshNodeId(data.destination)
-          if (destinationPeer) {
-            meshNode._debug('sendJSON: %o', data)
-            destinationPeer.sendJSON(data)
-          }
+    if (isMeshHost) {
+      $('#name').val("Host")
+    } else {
+      if (location.hash) {
+        $('#name').val(location.hash.split('#', 2)[1])
       }
     }
-  })
 
-  function addToChat(name, message) {
-    $('#chattable').append('<tr><td>' + name + ': ' + message + '</td></tr>')
-    scrollToBottomOfChat()
-  }
+    var url = (isMeshHost ? 'http://shielded-woodland-44092.herokuapp.com/' : null)
+    meshNode = MeshNode(SimplePeerFactory(),
+                            {'isHost': isMeshHost,
+                             'name': getName(),
+                             'id': getName()
+                            })
 
-  meshNode.on('chat', function(data) {
-    meshNode._debug('Chat: %o', data)
-    addToChat(data.name, data.message)
-  })
+    var socket = null
+    if (isMeshHost) {
+      meshNode.listenToSignalingServer()
+    }
 
-  sendSong = function(hash) {
-    songdb.findSongDataURL(hash, function(err, songDataURL) {
-      if (songDataURL) {
-        playSong(songDataURL)
-      } else {
-        meshNode._debug('Could not find song locally! %o: %s', hash, err)
+    meshNode.getAnchorURL(function(err, anchorURL) {
+      if (anchorURL) {
+        $('#signalingServer').val(anchorURL)
+      }
+    })
+    saveSignalingServer = function() {
+      meshNode.saveAnchorURL($('#signalingServer').val())
+    }
+
+    function playSong(dataURL) {
+      $('#audio').html("")
+      var g = $('<div></div>')
+      g.append('<audio id="mysong" autoplay src="' + dataURL + '">')
+      $('#audio').append(g)
+    }
+
+    meshNode.on('action', function(metadata) {
+      meshNode._debug('action: %o', metadata)
+      var peer = metadata.peer
+      var data = metadata.data
+      if (data.action == 'play') {
+        meshNode._debug('play: %o', data)
+        songdb.findSongDataURL(data.hash, function(err, songDataURL) {
+          if (songDataURL) {
+            meshNode._debug('using cached local data for hash %o', data.hash)
+            playSong(songDataURL)
+          } else {
+            meshNode._debug('play: %o (err %s)', data, err)
+            var downloadPeer = meshNode.addDownloadPeer(meshNode.createPeer(true), data.hash, function(sdp) {
+              var m1 = {'action': 'ask',
+                        'hash': data.hash,
+                        'offer': sdp,
+                        'source': data.source,
+                        'destination': meshNode.getId()}
+              meshNode._debug('sendJSON: %o', m1)
+              peer.sendJSON(m1)
+            }, function(p, hash, downloadedDataURL) {
+              assert(Sha256.hash(downloadedDataURL) === hash)
+              meshNode._debug('downloaded data len: %i', downloadedDataURL.length)
+              playSong(downloadedDataURL)
+              songdb.addSong(downloadedDataURL,
+                            {'source': data.source,
+                             'temporary': true,
+                             'downloadable': (data.downloadable || true)},
+                            function(err, id3) { console.log("Added song to db: %o", id3) })
+            })
+          }
+        })
+      } else if (data.action == 'ask') {
+        songdb.findSongDataURL(data.hash, function(err, songDataURL) {
+          if (err) {
+            meshNode._debug('Could not find dataURL for hash %s: %o', hash, err)
+            // Checking other peers nearby
+            var peerWithSong = meshNode.peerByMeshNodeId(data.source)
+            if (peerWithSong) {
+              meshNode._debug('sendJSON: %o', data)
+              peerWithSong.sendJSON(data)
+            }
+          } else {
+            var uploadPeer = meshNode.addUploadPeer(meshNode.createPeer(false), data.hash, songDataURL,
+              function(sdp) {
+                var m2 = {'action': 'download',
+                          'hash': data.hash,
+                          'destination': data.destination,
+                          'answer': sdp}
+                meshNode._debug('sendJSON: %o', m2)
+                peer.sendJSON(m2)
+            })
+            uploadPeer.signal(data.offer)
+          }
+        })
+      } else if (data.action == 'download') {
+        if (meshNode.getId() == data.destination) {
+          meshNode._debug('received download initation of song: %o', data)
+          meshNode.signalDownloadPeer(data.hash, data.answer)
+        } else {
+            var destinationPeer = meshNode.peerByMeshNodeId(data.destination)
+            if (destinationPeer) {
+              meshNode._debug('sendJSON: %o', data)
+              destinationPeer.sendJSON(data)
+            }
+        }
+      } else if (data.action === 'search') {
+        songdb.search(data.query, function(err, songs) {
+          if (err) {
+            meshNode._debug('Could not find songs for query %s: %o', data.query, err)
+          } else {
+            var m3 = {'action': 'results',
+                      'query': data.query,
+                      'destination': data.source,
+                      'results': songs}
+            meshNode._debug('sendJSON: %o', m3)
+            peer.sendJSON(m3)
+          }
+        })
+      } else if (data.action === 'results') {
+        if (data.destination === meshNode.getId()) {
+          fillQueue(data.results)
+          console.log("Results for [%s] arrived! (%s): %o", 
+                      data.query, data.destination, data.results)
+        } else {
+          console.log("Results for [%s] meant for someone else (%s): %o", 
+                      data.query, data.destination, data.results)
+        }
       }
     })
 
-    if (meshNode.isNodeHost()) {
-      meshNode.sendToAllPeers({
-        'action': 'play',
-        'source': meshNode.getId(),
-        'hash': hash
-      })
-    } else {
-      meshNode.broadcastToMeshThroughHost({
-        'action': 'play',
-        'source': meshNode.getId(),
-        'hash': hash
+    connectToSignalingAnchor = function() {
+      meshNode._debug("Attempt connect to foreign anchor")
+      meshNode.getForeignAnchors(function(foreignAnchors) {
+        meshNode._debug("Retreived foreign signaling anchors: %o", foreignAnchors)
+        if (foreignAnchors.length > 0) {
+          // connect to the most recent one
+          meshNode.connectThroughAnchor(foreignAnchors[foreignAnchors.length - 1])
+        }
       })
     }
-  }
 
-  var durationText = function(duration) {
-    var min = (Math.floor(duration / 60))
-    var sec = Math.floor(duration % 60)
-    var secText = '' + sec
-    while(secText.length < 2) {
-      secText = '0' + secText
+    function addToChat(name, message) {
+      $('#chattable').append('<tr><td>' + name + ': ' + message + '</td></tr>')
+      scrollToBottomOfChat()
     }
-    return min + ':' + secText
-  }
 
-  var updateImagesLocal = function(metadata) {
-    $('#songqueue').empty()
-    songdb.queue('default', function(err, queue) {
-      if (err) {
-        console.log("Error reading queue: %s", err)
+    meshNode.on('chat', function(data) {
+      meshNode._debug('Chat: %o', data)
+      addToChat(data.name, data.message)
+    })
+
+    downloadSong = function(hash) {
+      alert(hash)
+      var metadata = {'temporary': false}
+      songdb.updateMetadata(hash, metadata, function(err) {
+        if (err) {
+          console.log("Failed to update metadata for hash %s: %o (%s)", hash, metadata, err)
+        }
+      })
+    }
+
+    sendSong = function(hash) {
+      songdb.findSongDataURL(hash, function(err, songDataURL) {
+        if (songDataURL) {
+          playSong(songDataURL)
+        } else {
+          meshNode._debug('Could not find song locally! %o: %s', hash, err)
+        }
+      })
+
+      if (meshNode.isNodeHost()) {
+        meshNode.sendToAllPeers({
+          'action': 'play',
+          'source': meshNode.getId(),
+          'hash': hash,
+          'downloadable': $('#allowdownloads').prop('checked'),
+        })
+      } else {
+        meshNode.broadcastToMeshThroughHost({
+          'action': 'play',
+          'source': meshNode.getId(),
+          'hash': hash,
+          'downloadable': $('#allowdownloads').prop('checked'),
+        })
       }
-      for (var i=0; i<queue.length; i++) {
-        var metadata = queue[i];
+    }
+
+    searchNetwork = function(query) {
+      if (meshNode.isNodeHost()) {
+        meshNode.sendToAllPeers({
+          'action': 'search',
+          'source': meshNode.getId(),
+          'query': query,
+        })
+      } else {
+        meshNode.broadcastToMeshThroughHost({
+          'action': 'search',
+          'source': meshNode.getId(),
+          'query': query,
+        })
+      }
+    }
+
+    var durationText = function(duration) {
+      var min = (Math.floor(duration / 60))
+      var sec = Math.floor(duration % 60)
+      var secText = '' + sec
+      while(secText.length < 2) {
+        secText = '0' + secText
+      }
+      return min + ':' + secText
+    }
+
+    var fillQueue = function(songs) {
+      for (var i=0; i<songs.length; i++) {
+        var metadata = songs[i];
         if (metadata) {
-          console.log("id3: " + metadata.id3);
+          console.log("id3: %o", metadata.id3);
 
           var song = $("<tr></tr>");
           song.addClass("thumbnail");
@@ -234,39 +297,79 @@ jQuery(function() {
             td.append('<img src="' + 'data:image/jpeg;base64,' + Base64.encodeBytes(metadata.id3.tags.picture.data) + '" />')
           }
           td.append('<div class="title">' + metadata.id3.tags.title + '</div>')
-          td.append('<div class="artist">' + metadata.id3.tags.artist + ' &bull; ' + durationText(metadata.id3.duration) + '</div></td>');
+          td.append('<div class="artist">' + metadata.id3.tags.artist + ' &bull; ' + durationText(metadata.duration) + '</div></td>');
+          if (metadata.downloadable) {
+            td.append('<img onclick="return downloadSong(\'' + metadata.hash + '\')" class="download" src="static/images/download.png"></img>')
+          }
           song.append(td)
           $('#songqueue').append(song);
         }
       }
+    }
+
+    var updateImagesLocal = function(metadata) {
+      $('#songqueue').empty()
+      songdb.queue('default', function(err, full_queue) {
+        if (err) {
+          console.log("Error reading queue: %s", err)
+        } else {
+          fillQueue(full_queue)
+        }
+      })
+    }
+
+    $('#up').bind('click', function(e) { sendMessage("&#x1f44d;") })
+    $('#down').bind('click', function(e) { sendMessage("&#x1f44e;") })
+
+    $('#query').bind('keypress', function(e) {
+      var code = e.keyCode || e.which
+      var query = $('#query').val()
+      if (code == 13) {
+        songdb.search(query, function(err, songs) {
+          $('#songqueue').empty()
+          if (err) {
+            console.log("Search error: %s", err)
+          } else {
+            fillQueue(songs)
+          }
+        })
+        searchNetwork(query)
+      }
     })
-  }
 
-  var handleDragOver = function() {
-  }
+    var handleDragOver = function() {
+    }
 
-  draganddrop("side-menu", songdb, handleDragOver, updateImagesLocal)
+    draganddrop("side-menu", songdb, handleDragOver, updateImagesLocal)
 
-  updateImagesLocal();
+    updateImagesLocal();
 
-  var scrollToBottomOfChat = function() {
-    $('#chattable').scrollTop($('#chattable').prop('scrollHeight'))
-  }
-  scrollToBottomOfChat()
+    var scrollToBottomOfChat = function() {
+      $('#chattable').scrollTop($('#chattable').prop('scrollHeight'))
+    }
+    scrollToBottomOfChat()
 
-  chat = function() {
-    var message = $('#chatmessage').val()
-    if (message) {
+    var sendMessage = function(message) {
       console.log('Will send message: %s', message)
+      meshNode.setName(getName())
       meshNode.broadcastChatMessage(message)
       addToChat(getName(), message)
       $('#chatmessage').val('')
       $('#chatmessage').focus()
     }
-    return false
-  }
-  $('#chatmessage').focus()
+
+    chat = function() {
+      var message = $('#chatmessage').val()
+      if (message) {
+        sendMessage(message)
+      }
+      return false
+    }
+
+    $('#chatmessage').focus()
+  })
 })
+
 
 </script>
 
@@ -275,11 +378,13 @@ jQuery(function() {
   $('#queue-button').click(function() {
     $('#side-content').children().hide()
     $('#side-queue').show()
+    $('#query').focus()
   })
 
   $('#chat-button').click(function() {
     $('#side-content').children().hide()
     $('#side-chat').show()
+    $('#chatmessage').focus()
   })
 
   $('#room-button').click(function() {
@@ -287,6 +392,7 @@ jQuery(function() {
     $('#side-room').show()
   })
 })
+
 </script>
 
 </head>
@@ -349,8 +455,8 @@ jQuery(function() {
           </table>
           <div id="submitbutton">
             <form>
-              <input name="name" type="text"  id="name" value="Z" size=15 />
-              <input name="chatmessage" type="text" id="chatmessage" size="60" />
+              <input name="name" type="text" id="name" value="Z" size=15 />
+              <input name="chatmessage" autocomplete="off" type="text" id="chatmessage" size="60" />
               <input onclick="return chat()" name="chatsubmit" type="submit"  id="chatsubmit" value="Send" />
             </form>
           </div>
@@ -367,6 +473,12 @@ jQuery(function() {
                 <button type="submit" onclick="return saveSignalingServer();">Save Anchor URL</button>
                 <br />
                 <br />
+                <button type="submit" onclick="return connectToSignalingAnchor();">Connect To Last Anchor</button>
+                <br />
+                <br />
+                <input type="checkbox" id="allowdownloads" checked>Allow Downloads
+                <br />
+                <br />
 
                 <button type="submit" onclick="return newHost(true)">New Connection</button>
                 <br />
@@ -380,6 +492,7 @@ jQuery(function() {
             </div>
         </div>
         <div id="side-queue" style="display:none;">
+            <input id="query" type="text" placeholder="Default" />
             <table id="songqueue">
             </table>
         </div>
