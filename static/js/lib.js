@@ -1,3 +1,7 @@
+/**********************************
+ *  Base64 for ID3 image parsing
+ **********************************/
+
 // Modified version of http://www.webtoolkit.info/javascript-base64.html
 (function(ns) {
     ns.Base64 = {
@@ -42,6 +46,10 @@
     ns.Base64["encodeBytes"] = ns.Base64.encodeBytes;
 })(this);
 
+/*****************************
+ *  Make random GUID
+ *****************************/
+
 function makeid(length)
 {
     var text = "";
@@ -52,6 +60,112 @@ function makeid(length)
 
     return text;
 }
+
+
+/*****************************
+ *  Base 64 <--> Hex
+ *****************************/
+
+if (!window.atob) {
+  var tableStr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  var table = tableStr.split("");
+
+  window.atob = function (base64) {
+    if (/(=[^=]+|={3,})$/.test(base64)) throw new Error("String contains an invalid character");
+    base64 = base64.replace(/=/g, "");
+    var n = base64.length & 3;
+    if (n === 1) throw new Error("String contains an invalid character");
+    for (var i = 0, j = 0, len = base64.length / 4, bin = []; i < len; ++i) {
+      var a = tableStr.indexOf(base64[j++] || "A"), b = tableStr.indexOf(base64[j++] || "A");
+      var c = tableStr.indexOf(base64[j++] || "A"), d = tableStr.indexOf(base64[j++] || "A");
+      if ((a | b | c | d) < 0) throw new Error("String contains an invalid character");
+      bin[bin.length] = ((a << 2) | (b >> 4)) & 255;
+      bin[bin.length] = ((b << 4) | (c >> 2)) & 255;
+      bin[bin.length] = ((c << 6) | d) & 255;
+    };
+    return String.fromCharCode.apply(null, bin).substr(0, bin.length + n - 4);
+  };
+
+  window.btoa = function (bin) {
+    for (var i = 0, j = 0, len = bin.length / 3, base64 = []; i < len; ++i) {
+      var a = bin.charCodeAt(j++), b = bin.charCodeAt(j++), c = bin.charCodeAt(j++);
+      if ((a | b | c) > 255) throw new Error("String contains an invalid character");
+      base64[base64.length] = table[a >> 2] + table[((a << 4) & 63) | (b >> 4)] +
+                              (isNaN(b) ? "=" : table[((b << 2) & 63) | (c >> 6)]) +
+                              (isNaN(b + c) ? "=" : table[c & 63]);
+    }
+    return base64.join("");
+  };
+
+}
+
+function hexToBase64(str) {
+  return btoa(String.fromCharCode.apply(null,
+    str.replace(/\r|\n/g, "").replace(/([\da-fA-F]{2}) ?/g, "0x$1 ").replace(/ +$/, "").split(" "))
+  );
+}
+
+function base64ToHex(str) {
+  for (var i = 0, bin = atob(str.replace(/[ \r\n]+$/, "")), hex = []; i < bin.length; ++i) {
+    var tmp = bin.charCodeAt(i).toString(16);
+    if (tmp.length === 1) tmp = "0" + tmp;
+    hex[hex.length] = tmp;
+  }
+  return hex.join("");
+}
+
+function ab2str(buf) {
+  return String.fromCharCode.apply(null, new Uint16Array(buf));
+}
+
+function str2ab(str) {
+  var buf = new ArrayBuffer(str.length*2); // 2 bytes for each char
+  var bufView = new Uint16Array(buf);
+  for (var i=0, strLen=str.length; i<strLen; i++) {
+    bufView[i] = str.charCodeAt(i);
+  }
+  return buf;
+}
+
+function blobToDataURI(blob, callback) {
+  var a = new FileReader()
+  a.onload = function(e) { callback(e.target.result) }
+  a.readAsDataURL(blob)
+}
+
+function getBlobAudioDuration(blob, callback) {
+  var a = document.createElement('audio')
+  blobToDataURI(blob, function(dataURI) {
+    a.src = dataURI
+    a.addEventListener('loadedmetadata', function() {
+      callback(a.duration)
+    })
+  })
+}
+
+function dataURItoBlob(dataURI) {
+  // convert base64/URLEncoded data component to raw binary data held in a string
+  var byteString;
+  if (dataURI.split(',')[0].indexOf('base64') >= 0)
+      byteString = atob(dataURI.split(',')[1]);
+  else
+      byteString = unescape(dataURI.split(',')[1]);
+
+  // separate out the mime component
+  var mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+
+  // write the bytes of the string to a typed array
+  var ia = new Uint8Array(byteString.length);
+  for (var i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+  }
+
+  return new Blob([ia], {type:mimeString});
+}
+
+/*****************************
+ *  SDP Reduction
+ *****************************/
 
 function get_reduced_sdp(desc){
 	var sdp = desc.sdp

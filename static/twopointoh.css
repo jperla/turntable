@@ -123,6 +123,9 @@ div {
   top: 34px;
   color: DarkGray;
 }
+#songqueue td .download {
+  left: 355px;
+}
 #images-server,
 #images-local {
   border: 2px solid #666;

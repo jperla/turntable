@@ -68,8 +68,9 @@ SimplePeer.prototype.encodeJSON = function(message) {
 
 SimplePeer.prototype.sendJSON = function(message) {
   var self = this
-  self._debug('sendJSON: %o', message)
-  self.send(self.encodeJSON(message))
+  var jsonMessage = self.encodeJSON(message)
+  self._debug('sendJSON (%i): %o', jsonMessage.length, message)
+  self.send(jsonMessage)
 }
 
 SimplePeer.prototype.parseJSON = function(rawData) {
@@ -100,6 +101,14 @@ function MeshNode(peerFactory, opts) {
   self.downloadPeers = {}
   self.uploadPeers = {}
 
+  var hexId = base64ToHex(self.id).slice(0, 40)
+  console.log('hexId: %s', hexId)
+  self.torrenter = new WebTorrent({
+    'dht': false,
+    'peerId': hexId,
+    'tracker': false,
+  })
+
   self.anchorStore = localforage.createInstance({
       name: "anchorStore:" + self.id
   })
@@ -112,6 +121,11 @@ function MeshNode(peerFactory, opts) {
 MeshNode.prototype.lastUnconnectedPeer = function() {
   var self = this
   return self._lastUnconnectedPeer
+}
+
+MeshNode.prototype.setName = function(name) {
+  var self = this
+  self.name = name
 }
 
 MeshNode.prototype.createPeer = function(isInitiator, opts) {
@@ -127,7 +141,9 @@ MeshNode.prototype.numPeers = function() {
 
 MeshNode.prototype.broadcastToMeshThroughHost = function(encodedMessageDictionary) {
   var self = this
-  self.hostPeer.sendJSON({'action':'broadcast', 'message': encodedMessageDictionary})
+  if (self.hostPeer) {
+    self.hostPeer.sendJSON({'action':'broadcast', 'message': encodedMessageDictionary})
+  }
 }
 
 MeshNode.prototype.sendToAllPeers = function(encodedMessageDictionary, exceptPeer) {
@@ -164,14 +180,13 @@ MeshNode.prototype.isNodeHost = function() {
 
 MeshNode.prototype.informPeer = function(peer, message) {
   var self = this
-  self.anchor(function(err, anchor) {
-    var signalingServer = (anchor ? anchor.signalingServer : null)
+  self.getAnchorURL(function(err, anchorURL) {
     var wholeMessage = {
       'action': 'inform',
       'message': message,
       'name': self.name,
       'meshNodeId': self.id,
-      'anchor': signalingServer
+      'anchorURL': anchorURL
     }
     peer.sendJSON(wholeMessage)
     self._debug('Inform sent: %o', wholeMessage)
@@ -215,8 +230,15 @@ MeshNode.prototype.sendChatMessageToPeer = function(peer, message) {
 MeshNode.prototype._debug = function () {
   var self = this
   var args = [].slice.call(arguments)
-  args[0] = '[' + self.id + '] ' + args[0]
+  args[0] = '[' + self.getShortId() + '] ' + args[0]
   console.debug.apply(console, args)
+}
+
+MeshNode.prototype._torrent_debug = function () {
+  var self = this
+  var args = [].slice.call(arguments)
+  args[0] = '[torrent] ' + args[0]
+  self._debug.apply(self, args)
 }
 
 MeshNode.prototype.emit = function(eventName, data) {
@@ -232,8 +254,7 @@ MeshNode.prototype.on = function(eventName, f) {
 MeshNode.prototype.addUploadPeer = function(p, hash, rawDataBits, signalFunc, callback) {
   var self = this
   assert(p != null)
-  self.uploadPeers[hash] = {'peer': p, 'rawDataBits': rawDataBits, 'i': 0}
-  CHUNK_SIZE=64000
+  self.uploadPeers[hash] = {'peer': p, 'rawDataBits': rawDataBits}
 
   p.on('error', function (err) { console.log('error', err) })
 
@@ -244,41 +265,54 @@ MeshNode.prototype.addUploadPeer = function(p, hash, rawDataBits, signalFunc, ca
 
   p.on('connect', function () {
     self._debug('CONNECT UPLOAD')
-    var u = self.uploadPeers[hash]
-    var chunk = u.rawDataBits.slice(0, CHUNK_SIZE)
-    self._debug('send chunk %i size %i', u.i, chunk.length)
-    p.write(chunk)
+    self.torrenter.seed(new File([rawDataBits], hash), {}, function(torrent) {
+      self._debug('Generated torrent: %o', torrent)
+      p.sendJSON(torrent.infoHash)
+
+      torrent.addPeer(p)
+
+      torrent.on('upload', function (bytes) {
+        self._torrent_debug('just uploaded: %f', bytes)
+        self._torrent_debug('total uploaded: %f', torrent.uploaded);
+        self._torrent_debug('numPeers: %i',  torrent.numPeers)
+        self._torrent_debug('ratio: %f', torrent.ratio)
+        self._torrent_debug('upload speed: %f', torrent.uploadSpeed)
+        self._torrent_debug('progress: %f', torrent.progress)
+      })
+
+      torrent.on('wire', function (wire, addr) {
+        self._torrent_debug('connected to peer with address ' + addr)
+      })
+    })
   })
 
-  p.on('data', function (ack) {
-    self._debug('upload peer received data: %o', ack)
-
-    var u = self.uploadPeers[hash]
-    u.i += 1
-    if (u.i * CHUNK_SIZE < u.rawDataBits.length) {
-      var chunk = u.rawDataBits.slice(u.i * CHUNK_SIZE, (u.i + 1) * CHUNK_SIZE)
-      self._debug('send chunk %i size %i', u.i, chunk.length)
-      p.write(chunk)
-    } else {
-      self._debug('destroying upload peer:', hash)
-      setTimeout(function() {
-        p.destroy(function() {
-          self._debug('CONNECT UPLOAD COMPLETE -- data size: %i', u.rawDataBits.length)
-          if (callback) {
-            callback(p, hash, u.rawDataBits)
-          }
-          delete self.uploadPeers[hash]
-        })
-      }, 1000)
-    }
+  p.on('close', function () {
+    self._torrent_debug('Torrent upload done for %s, cleaning up', hash)
+    p.destroy(function() {
+      var u = self.uploadPeers[hash]
+      self._torrent_debug('CONNECT UPLOAD COMPLETE -- data size: %i', u.rawDataBits.length)
+      torrent.destroy(function() {
+        delete self.uploadPeers[hash]
+        if (callback) {
+          callback(null, hash, u.rawDataBits)
+        }
+      })
+    })
   })
-  
+
   return p
 }
 
 MeshNode.prototype.getId = function() {
   var self = this
   return self.id
+}
+
+LENSHORTID = 9
+
+MeshNode.prototype.getShortId = function() {
+  var self = this
+  return self.id.slice(0, LENSHORTID)
 }
 
 MeshNode.prototype.peerByMeshNodeId = function(meshNodeId) {
@@ -299,12 +333,13 @@ MeshNode.prototype.signalDownloadPeer = function(hash, sdp) {
   }
 }
 
-MeshNode.prototype.addDownloadPeer = function(p, hash, signalFunc, callback) {
+MeshNode.prototype.addDownloadPeer = function(p, hash, signalFunc, streamCallback, doneCallback) {
   var self = this
   assert(p != null)
-  self.downloadPeers[hash] = {'peer': p, 'chunks': []}
+  self.downloadPeers[hash] = {'peer': p}
+  self.once = false
 
-  p.on('error', function (err) { console.log('error', err) })
+  p.on('error', function (err) { self._debug('error', err) })
 
   p.on('signal', function (data) {
     self._debug('SIGNAL download peer %o', data)
@@ -316,52 +351,150 @@ MeshNode.prototype.addDownloadPeer = function(p, hash, signalFunc, callback) {
   })
 
   p.on('data', function (chunk) {
-    self._debug('download peer received data: %o', chunk)
-    var chunks = self.downloadPeers[hash].chunks
-    chunks.push(chunk)
-    p.write('ACK 1 ' + chunks.length)
+    if(!self.once) {
+      self.once = true
+      self._torrent_debug('download peer received data: %o', chunk)
+      infoHash = p.parseJSON(chunk)
+      self._torrent_debug('download peer received id: %o', infoHash)
+      var torrent = self.torrenter.add(infoHash, {}, function(t) {
+        self._torrent_debug('Downloading torrent: %o', t)
+      })
+
+      torrent.addPeer(p)
+
+      var once = false
+      torrent.on('download', function (bytes) {
+        //self._torrent_debug('just downloaded: ' + bytes)
+        //self._torrent_debug('total downloaded: ' + torrent.downloaded)
+        //self._torrent_debug('download speed: ' + torrent.downloadSpeed)
+        //self._torrent_debug('progress: ' + torrent.progress)
+
+        if (torrent.progress > 0.10 && !once) {
+          once = true
+          self._torrent_debug('Will start streaming: ' + torrent.progress)
+          var readable = torrent.files[0].createReadStream()
+          streamCallback(readable)
+        }
+      })
+
+      torrent.on('wire', function (wire, addr) {
+        self._torrent_debug('connected to peer with address ' + addr)
+      })
+
+      torrent.on('done', function() {
+        self._torrent_debug('torrent finished downloading')
+        torrent.files[0].getBuffer(function(err, buffer) {
+          if (err) {
+            console.log('Error after done: %s', err)
+            doneCallback(err)
+          } else {
+            byteArray = new Uint8Array(buffer)
+            self._torrent_debug('Downloaded data for %s (%i bytes)', hash, byteArray.length)
+            doneCallback(null, hash, byteArray)
+          }
+        })
+        p.destroy()
+      })
+    }
   })
   
   p.on('close', function() {
     var d = self.downloadPeers[hash]
-    self._debug('CONNECT DOWNLOAD COMPLETE: %i chunks', d.chunks.length)
-    var data = d.chunks.join('')
-    callback(p, hash, data)
+    self._debug('CONNECT DOWNLOAD COMPLETE')
     delete self.downloadPeers[hash]
   })
+
   return p
 }
 
-MeshNode.prototype.anchor = function(callback) {
+MYANCHOR = 'anchorURL'
+
+MeshNode.prototype.getAnchorURL = function(callback) {
   var self = this
-  self.anchorStore.getItem('anchor', callback)
+  self.anchorStore.getItem(MYANCHOR, callback)
 }
 
-MeshNode.prototype.saveAnchor = function(meshNodeId, anchorSignalingServerURL) {
+MeshNode.prototype.saveAnchorURL = function(anchorURL) {
   var self = this
-  var anchor = {'id': meshNodeId, 'signalingServer': anchorSignalingServerURL}
-  self.anchorStore.setItem('anchor',
-                           anchor,
+  self.anchorStore.setItem(MYANCHOR,
+                           anchorURL,
                            function(err) {
                              if (err) {
-                               self._debug("[ERROR] Could not save anchor %o: %s", anchor, err)
+                               self._debug("[ERROR] Could not save anchor url %o: %s", anchorURL, err)
                              } else {
-                               self._debug("Saved anchor %o", anchor)
+                               self._debug("Saved anchor url %o", anchorURL)
                              }
   })
 }
 
+FOREIGNANCHORS = 'allMyForeignAnchors'
+
+MeshNode.prototype.getForeignAnchors = function(callback) {
+  var self = this
+  self.anchorStore.getItem(FOREIGNANCHORS, function(err, foreignAnchors) {
+    if (err) {
+      self._debug("Error retrieving foreign anchors: %s", err)
+    }
+
+    if (!foreignAnchors) {
+      foreignAnchors = []
+    }
+
+    callback(foreignAnchors)
+  })
+}
+
+MeshNode.prototype.saveForeignAnchor = function(meshNodeId, signalingServer) {
+  var self = this
+  // TODO: validate anchor format
+  var anchor = {'id': meshNodeId, 'signalingServer': signalingServer}
+  assert(typeof signalingServer === "string", "signaling server for anchor not a string")
+  assert(typeof meshNodeId === "string", "meshNodeId for anchor not a string")
+  self.getForeignAnchors(function(foreignAnchors) {
+    self._debug('Got existing foreign anchors: %o', foreignAnchors)
+    // TODO: possible race condition
+
+    // add if it does not exist
+    EXISTS = false
+    for(var i=0; i<foreignAnchors.length; i++) {
+      if (foreignAnchors[i].id === anchor.id && 
+          foreignAnchors[i].signalingServer === anchor.signalingServer) {
+        EXISTS = true
+        break
+      }
+    }
+
+    if (EXISTS) {
+      self._debug('Foreign anchor already exists: %o', anchor)
+    } else {
+      foreignAnchors.push(anchor)
+      self._debug('Will save foreign anchors: %o', foreignAnchors)
+      self.anchorStore.setItem(FOREIGNANCHORS,
+                               foreignAnchors,
+                               function(err) {
+                                 if (err) {
+                                   self._debug("[ERROR] Could not add foreign anchor %o to %o: %s",
+                                               anchor, foreignAnchors, err)
+                                 } else {
+                                   self._debug("Saved foreign anchor %o to %o", anchor, foreignAnchors)
+                                 }
+      })
+    }
+
+  })
+}
+
+
 MeshNode.prototype.listenToSignalingServer = function() {
   var self = this
-  self.anchor(function(err, anchor) {
+  self.getAnchorURL(function(err, anchorURL) {
     if (err) {
       self._debug("[BYOSS] could not find anchor: %s", err)
     }
    
-    if (anchor) {
-      var signalingServer = anchor.signalingServer
-      self._debug('Listening for BYOSS anchor applicants: %s', signalingServer)
-      socket = io(signalingServer)
+    if (anchorURL) {
+      self._debug('Listening for BYOSS anchor applicants: %s', anchorURL)
+      socket = io(anchorURL)
       // TODO: do this after connect
       socket.emit('listen', self.id)
 
@@ -382,32 +515,26 @@ MeshNode.prototype.listenToSignalingServer = function() {
   })
 }
 
-MeshNode.prototype.connectThroughAnchorSignalingServer = function() {
+MeshNode.prototype.connectThroughAnchor = function(anchor) {
   var self = this
-  self.anchor(function(err, anchor) {
-    if(err) {
-      self._debug('[BYOSS] No anchor: %s', err)
-    }
+  if (anchor) {
+    var destination = anchor.id
+    var signalingServer = anchor.signalingServer
+    socket = io(signalingServer)
+    self._debug('[BYOSS] anchorMeshNodeId: %s signalingServer %o', destination, signalingServer)
+    var autoHost = self.addPeer(self.createPeer(true), function(sdp) {
+      var offer = {'source': self.id, 
+                   'destination': destination,
+                   'sdp': sdp}
+      socket.emit('offer', offer)
+      self._debug('[BYOSS] Emitted offer: %o', offer)
+    })
 
-    if (anchor) {
-      var destination = anchor.id
-      var signalingServer = anchor.signalingServer
-      socket = io(signalingServer)
-      self._debug('[BYOSS] anchorMeshNodeId: %s signalingServer %s', destination, signalingServer)
-      var autoHost = self.addPeer(self.createPeer(true), function(sdp) {
-        var offer = {'source': self.id, 
-                     'destination': destination,
-                     'sdp': sdp}
-        socket.emit('offer', offer)
-        self._debug('[BYOSS] Emitted offer: %o', offer)
-      })
-
-      socket.on('answer', function(answer) {
-        self._debug('[BYOSS] Received answer: %o', answer)
-        autoHost.signal(answer.sdp)
-      })
-    }
-  })
+    socket.on('answer', function(answer) {
+      self._debug('[BYOSS] Received answer: %o', answer)
+      autoHost.signal(answer.sdp)
+    })
+  }
 }
 
 MeshNode.prototype.addPeer = function(p, signalFunc) {
@@ -441,8 +568,9 @@ MeshNode.prototype.addPeer = function(p, signalFunc) {
       self._debug('Inform received: %o', data)
       self.meshNodeIdToPeer[data.meshNodeId] = p
 
-      if (data.anchor) {
-        self.saveAnchor(data.meshNodeId, data.anchor)
+      if (data.anchorURL) {
+        self._debug('Will save foreign anchor: %o', data.anchorURL)
+        self.saveForeignAnchor(data.meshNodeId, data.anchorURL)
       }
 
       if (data.message.type == 'isHost') {
@@ -695,7 +823,7 @@ if (TEST) {
             assert(guestB.numPeers() == 2, 'Guest B not connected')
             assert(guestC.numPeers() == 2, 'Guest C not connected')
             console.log('C connected to A!')
-          }, 20)
+          }, 1000)
         })
         guestCFirstPeer.signal(guestBOffer)
       })
