@@ -272,12 +272,12 @@ MeshNode.prototype.addUploadPeer = function(p, hash, rawDataBits, signalFunc, ca
       torrent.addPeer(p)
 
       torrent.on('upload', function (bytes) {
-        self._torrent_debug('just uploaded: %f', bytes)
-        self._torrent_debug('total uploaded: %f', torrent.uploaded);
+        //self._torrent_debug('just uploaded: %f', bytes)
+        //self._torrent_debug('total uploaded: %f', torrent.uploaded);
         self._torrent_debug('numPeers: %i',  torrent.numPeers)
-        self._torrent_debug('ratio: %f', torrent.ratio)
-        self._torrent_debug('upload speed: %f', torrent.uploadSpeed)
-        self._torrent_debug('progress: %f', torrent.progress)
+        //self._torrent_debug('ratio: %f', torrent.ratio)
+        //self._torrent_debug('upload speed: %f', torrent.uploadSpeed)
+        //self._torrent_debug('progress: %f', torrent.progress)
       })
 
       torrent.on('wire', function (wire, addr) {

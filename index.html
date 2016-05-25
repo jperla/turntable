@@ -336,11 +336,10 @@ jQuery(function() {
               peerWithSong.sendJSON(data)
             }
           } else {
-            songdb.findSongsMetadata([data.hash], function(err, metadatas) {
+            songdb.findSongMetadataNotID3(data.hash, function(err, songMetadata) {
               if (err) {
                 meshNode._debug('songMetadata err: %s', err)
               } else {
-                var songMetadata = metadatas[0]
                 var uploadPeer = meshNode.addUploadPeer(meshNode.createPeer(false), data.hash, songData,
                   function(sdp) {
                     var m2 = {'action': 'download',
@@ -467,8 +466,7 @@ jQuery(function() {
         }
       })
 
-      songdb.findSongsMetadata([hash], function(err, metadatas) {
-        var songMetadata = metadatas[0]
+      songdb.findSongMetadataNotID3(hash, function(err, songMetadata) {
         if (meshNode.isNodeHost()) {
           meshNode.sendToAllPeers({
             'action': 'play',

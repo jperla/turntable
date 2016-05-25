@@ -316,6 +316,18 @@ SongDB.prototype.findSongsMetadata = function(hashes, callback) {
   })
 }
 
+SongDB.prototype.findSongMetadataNotID3 = function(hash, callback) {
+  var self = this
+  self.findSongsMetadata([hash], function(err, metadatas) {
+    var metadata = null
+    if (metadatas) {
+      metadata = metadatas[0]
+      delete metadata.id3
+    }
+    callback(err, metadata)
+  })
+}
+
 SongDB.prototype.queue = function(queueName, callback) {
   var self = this
   assert(queueName === "default")
