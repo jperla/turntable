@@ -303,7 +303,7 @@ jQuery(function() {
               if (err) {
                 meshNode._debug('Error downloading %s: %o', hash, err)
               } else {
-                var downloadedData = new Blob([downloadedDataByteArray], {type: data.metadata.type})
+                var downloadedData = new Blob([downloadedDataByteArray], {type: data.type})
                 console.log('data: %s %s %s', downloadedData.length, downloadedData.slice(0, 30), downloadedData.slice(downloadedData.length - 30))
                 blobToDataURI(downloadedData, function(downloadedDataURI) {
                   console.log('data uri: %s %s %s', downloadedDataURI.length, downloadedDataURI.slice(0, 100), downloadedDataURI.slice(downloadedDataURI.length - 100))
@@ -344,7 +344,7 @@ jQuery(function() {
                   function(sdp) {
                     var m2 = {'action': 'download',
                               'hash': data.hash,
-                              'metadata': songMetadata,
+                              'type': songMetadata.type,
                               'destination': data.destination,
                               'answer': sdp}
                     meshNode._debug('sendJSON: %o', m2)
@@ -472,7 +472,7 @@ jQuery(function() {
             'action': 'play',
             'source': meshNode.getId(),
             'hash': hash,
-            'metadata': songMetadata,
+            'type': songMetadata.type,
             'downloadable': $('#allowdownloads').prop('checked'),
           })
         } else {
@@ -480,7 +480,7 @@ jQuery(function() {
             'action': 'play',
             'source': meshNode.getId(),
             'hash': hash,
-            'metadata': songMetadata,
+            'type': songMetadata.type,
             'downloadable': $('#allowdownloads').prop('checked'),
           })
         }
