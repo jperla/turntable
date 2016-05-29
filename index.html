@@ -128,7 +128,9 @@ var initialize = function(songdb, callback) {
             console.log("Failed to save prefs (%o): %s", prefs, err)
             callback(err)
           } else {
+            console.log("Will ensure upgrade ")
             songdb.ensureUpgraded(function(err) {
+              console.log("Ensured upgrade ")
               callback(err, prefs)
             })
           }
@@ -315,11 +317,20 @@ jQuery(function() {
                     meshNode._debug('Playing song after download')
                     playSong(downloadedData)
                   }
-                  songdb.addSong(downloadedData,
-                                {'source': data.source,
-                                 'temporary': true,
-                                 'downloadable': (data.downloadable || true)},
-                                function(err, id3) { console.log("Added song to db: %o", id3) })
+                  songdb.addSong(
+                    downloadedData,
+                    {'source': data.source,
+                     'temporary': true,
+                     'downloadable': (data.downloadable || true)},
+                    function(err, metadata) {
+                      if(err) {
+                        meshNode._debug("Error adding song to db: %s", err)
+                      } else {
+                        meshNode._debug("Added song to db: %o", metadata)
+                        songdb.addToHeadOfQueue('default', metadata.hash)
+                      }
+                    }
+                  )
                 })
               }
             })

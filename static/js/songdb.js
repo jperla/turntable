@@ -76,12 +76,371 @@ function SongDB(opts) {
   self.id = opts.id || "SongDB"
   self.migrations = migrations
 
+  self.queues = {'default': []}
+
+  self.storeQueues = localforage.createInstance({
+    name: self.id + "-queues4"
+  })
+
   self.storeMetadata = localforage.createInstance({
     name: self.id + "-metadata2"
   })
 
   self.storeData = localforage.createInstance({
     name: self.id + "-data2"
+  })
+}
+
+var errmsg = function(callback) {
+  var f = function(err) {
+    console.log('err: %s', err)
+    callback(err)
+  }
+  return f
+}
+
+var promise = function(myThis, func) {
+  var func2 = function() {
+    var called = false
+    var args = null
+    var callThen = null
+    var callCatch = null
+
+    var _firstArg = function(myArgs) {
+      var firstArg = null
+      if (myArgs.length > 0) {
+        firstArg = myArgs[0]
+      }
+      return firstArg
+    }
+
+    var _catch = function(f) {
+      if (called) {
+        firstArg = _firstArg(args)
+        if (firstArg) {
+          console.log('_catch!!!')
+          f(firstArg)
+        }
+      } else {
+        callCatch = f
+      }
+    }
+
+    var _then = function(f) {
+      console.log('then')
+      if (called) {
+        firstArg = _firstArg(args)
+        if (!firstArg) {
+          console.log('apply f _then')
+          f.apply(this, args.slice(1))
+        }
+      } else {
+        console.log('then callThen: %o', f)
+        callThen = f
+      }
+
+      return {'catch': _catch}
+    }
+
+    var once = false
+
+    var callback2 = function() {
+      if (once) {
+        assert(false, "Callback called more than once")
+      } else {
+        once = true
+      }
+      called = true
+      args = [].slice.call(arguments)
+      console.log('callback2 called: %s args %o %o', args.length, callback2, args)
+
+      var firstArg = _firstArg(args)
+      if (firstArg) {
+        console.log('firstArg true')
+        if (callCatch) {
+          console.log('callCatch')
+          callCatch(firstArg)
+        }
+      } else {
+        console.log('firstArg false')
+        if (callThen) {
+          console.log('callThen')
+          callThen.apply(null, args.slice(1))
+        }
+      }
+    }
+
+
+    var a = [].slice.call(arguments)
+    a.push(callback2)
+    console.log('a.length: %i', a.length)
+    func.apply(myThis, a)
+
+    return {
+      'then': _then,
+      'catch': _catch,
+    }
+  }
+
+  return func2
+}
+
+SongDB.prototype.Queue = function(queueName) {
+  var self = this
+
+  var queueHead = function() {
+    return queueName + '-HEAD'
+  }
+
+  var queueTail = function() {
+    return queueName + '-TAIL'
+  }
+
+  var queueHash = function(hash) {
+    assert(hash !== null)
+    return queueName + '-' + hash
+  }
+
+  var getHash = promise(this, function(hash, callback) {
+    self.storeQueues.getItem(queueHash(hash)).then(function(links) {
+      callback(null, links)
+    }).catch(errmsg(callback))
+  })
+
+  var getHead = promise(this, function(callback) {
+    self.storeQueues.getItem(queueHead()).then(function(headHash) {
+      if (headHash) {
+        self.storeQueues.getItem(queueHash(headHash)).then(function(links) {
+          console.log('found headHash in getHead: %s %o', headHash, links)
+          callback(null, headHash, links)
+        }).catch(errmsg(callback))
+      } else {
+        console.log('null found null no head')
+        callback(null, null, [null, null])
+      }
+    }).catch(function(err) {
+      // head doesnt exist, empty list
+      console.log('found null no head')
+      callback(null, null, [null, null])
+    })
+  })
+
+  var _appendNextCache = function(links, cache, callback) {
+    var nextHash = links[1]
+    if (nextHash) {
+      cache.push(nextHash)
+      getHash(nextHash).then(function(nextLinks) {
+        _appendNextCache(nextLinks, cache, callback)
+      }).catch(errmsg(callback))
+    } else {
+      callback(null)
+    }
+  }
+
+  var fillCache = function(cache, callback) {
+    console.log('will get head')
+    getHead().then(function(headHash, links) {
+      assert(links[0] === null)
+      if (headHash) {
+        console.log('headHash: %s', headHash)
+        cache.push(headHash)
+        _appendNextCache(links, cache, callback)
+      } else {
+        console.log('empty list')
+        // empty list
+        callback(null)
+      }
+    }).catch(errmsg(callback))
+  }
+
+  var setHash = promise(this, function(hash, links, callback) {
+    self.storeQueues.setItem(queueHash(hash), links).then(function() {
+      callback(null)
+    }).catch(errmsg(callback))
+  })
+
+  var setHead = promise(this, function(hash, callback) {
+    self.storeQueues.setItem(queueHead(), hash).then(function() {
+      callback(null)
+    }).catch(errmsg(callback))
+  })
+
+  var setTail = promise(this, function(hash, callback) {
+    self.storeQueues.setItem(queueTail(), hash).then(function() {
+      callback(null)
+    }).catch(errmsg(callback))
+  })
+
+  var length = function() {
+    return self.queues[queueName].length
+  }
+
+  var isEmpty = function() {
+    return length() == 0
+  }
+
+  var all = function() {
+    return self.queues[queueName]
+  }
+
+  var splicePrev = promise(this, function(hash, prevHash, nextHash, callback) {
+    // Splice a doubly linked list on prev node
+    if (prevHash === null) {
+      // this is a head node, set a new head
+      setHead(nextHash).then(function(err) {
+        callback(err)
+      }).catch(errmsg(callback))
+    } else {
+      getHash(prevHash).then(function(links) {
+        setHash(prevHash, [links[0], nextHash]).then(function(err) {
+          callback(err)
+        }).catch(errmsg(callback))
+      }).catch(errmsg(callback))
+    }
+  })
+
+  var spliceNext = promise(this, function(hash, prevHash, nextHash, callback) {
+    // Splice a doubly linked list on next node, assuming prev node already splice
+    if (nextHash === null) {
+      // this is a tail node, set a new tail
+      setTail(prevHash).then(function(err) {
+        callback(err)
+      }).catch(errmsg(callback))
+    } else {
+      getHash(nextHash).then(function(links) {
+        setHash(nextHash, [prevHash, links[1]]).then(function(err) {
+          callback(err)
+        }).catch(errmsg(callback))
+      }).catch(errmsg(callback))
+    }
+  })
+
+  var cachedAddToHead = function(hash) {
+    self.queues[queueName].unshift(hash)
+  }
+
+  var contains = function(hash) {
+    return self.queues[queueName].indexOf(hash) >= 0
+  }
+
+  var cachedSplice = function(hash) {
+    var index = self.queues[queueName].indexOf(hash)
+    self.queues[queueName].splice(index, 1)
+  }
+
+  return {
+    'getHead': getHead,
+    'getHash': getHash,
+    'setHash': setHash,
+    'length': length,
+    'isEmpty': isEmpty,
+    'all': all,
+    'contains': contains,
+
+    'setHead': setHead,
+    'setTail': setTail,
+    'fillCache': fillCache,
+
+    'splicePrev': splicePrev,
+    'spliceNext': spliceNext,
+
+    'cachedAddToHead': cachedAddToHead,
+    'cachedSplice': cachedSplice,
+  }
+}
+
+SongDB.prototype.addToHeadOfQueue = function(queueName, hash, callback) {
+  var self = this
+  var queue = self.Queue(queueName)
+  assert(queueName === "default")
+
+  if (queue.contains(hash)) {
+    self._debug('queue already contains song (should move to top)')
+    self.moveToTopOfQueue(queueName, hash, function(err) {
+      self._debug('Move complete')
+      callback(err)
+    })
+  } else {
+    if (queue.isEmpty()) {
+      queue.setHash(hash, [null, null]).then(function() {
+        queue.setHead(hash).then(function() {
+          queue.setTail(hash).then(function() {
+            queue.cachedAddToHead(hash)
+            callback(null)
+          }).catch(errmsg(callback))
+        }).catch(errmsg(callback))
+      }).catch(errmsg(callback))
+    } else {
+      queue.getHead().then(function(headHash, links) {
+        var prevHeadHash = links[0]
+        assert(prevHeadHash === null)
+        assert(headHash !== null)
+        queue.setHash(hash, [null, headHash]).then(function() {
+          queue.setHash(headHash, [hash, links[1]]).then(function() {
+            queue.setHead(hash).then(function() {
+              queue.cachedAddToHead(hash)
+              s = []
+              queue.fillCache(s, function(err) {
+                console.log('s: %o', s)
+                console.log('q: %o', self.queues[queueName])
+                assert(s.length === self.queues[queueName].length)
+                for(var i=0; i<s.length; s++) {
+                  assert(s[i] === self.queues[queueName][i])
+                }
+                callback(null)
+              })
+            }).catch(errmsg(callback))
+          }).catch(errmsg(callback))
+        }).catch(errmsg(callback))
+      }).catch(errmsg(callback))
+    }
+  }
+}
+
+SongDB.prototype.removeFromQueue = function(queueName, hash, callback) {
+  var self = this
+  var queue = self.Queue(queueName)
+  // TODO: lock the queue operations? queue up the queue operations?
+
+  var startingLength = queue.length()
+  assert(queue.length() > 0)
+  assert(queue.contains(hash))
+
+  queue.getHash(hash).then(function(links) {
+    var prevHash = links[0]
+    var nextHash = links[1]
+  
+    queue.splicePrev(hash, prevHash, nextHash).then(function(err) {
+      if (err) {
+        callback(err)
+      } else {
+        queue.spliceNext(hash, prevHash, nextHash).then(function(err) {
+          if (err) {
+            callback(err)
+          } else {
+            queue.cachedSplice(hash)
+            assert(queue.length() === (startingLength - 1))
+            callback(null)
+          }
+        }).catch(errmsg(callback))
+      }
+    }).catch(errmsg(callback))
+  }).catch(errmsg(callback))
+}
+
+SongDB.prototype.moveToTopOfQueue = function(queueName, hash, callback) {
+  var self = this
+  var queue = self.Queue(queueName)
+  // TODO: lock the queue operations? queue up the queue operations?
+
+  assert(queue.length() > 0)
+  assert(queue.contains(hash))
+  self.removeFromQueue(queueName, hash, function(err) {
+    if(err) {
+      callback(err)
+    } else {
+      self.addToHeadOfQueue(queueName, hash, callback)
+    }
   })
 }
 
@@ -126,8 +485,18 @@ SongDB.prototype.ensureUpgraded = function(callback) {
         })
       })
     }).then(function() {
-      callback(null, self)
-      self._debug("Finished starting iteration of songdb")
+      self._debug('Will fill all queues')
+      // TODO: fill all queues
+      var queue = self.Queue('default')
+      self.queues['default'] = []
+      queue.fillCache(self.queues['default'], function(err) {
+        if (err) {
+          callback(err)
+        } else {
+          self._debug("Finished starting iteration of songdb")
+          callback(null, self)
+        }
+      })
     }).catch(function(err) {
       self._debug("Error in iteration of songdb: %s", err)
       callback(err)
@@ -246,6 +615,7 @@ SongDB.prototype.addSong = function (data, extraMetadata, callback) {
     var check = self.storeMetadata.getItem(hash, function(err, metadata) {
       if (metadata) {
         self._debug('Existing Song: Song already in DB: %s %o', hash, metadata)
+        metadata.hash = hash
         callback(null, metadata)
       } else {
         self._debug('New Song: Will add song %s: %s', hash, err)
@@ -270,6 +640,7 @@ SongDB.prototype.addSong = function (data, extraMetadata, callback) {
                 var i = self.storeMetadata.setItem(hash, metadata)
                 i.then(function() {
                   self._debug('Stored metadata for song %s: %o %o', hash, metadata.id3.tags.title, metadata)
+                  metadata.hash = hash
                   callback(null, metadata)
                 })
                 i.catch(function(err) {
@@ -331,14 +702,10 @@ SongDB.prototype.findSongMetadataNotID3 = function(hash, callback) {
 SongDB.prototype.queue = function(queueName, callback) {
   var self = this
   assert(queueName === "default")
-  // TODO make real queue (stored in localStorage)
-  self.storeMetadata.keys().then(function(keys) {
-    self.findSongsMetadata(keys, function(err, metadatas) {
-      callback(err, metadatas)
-    })
-  }).catch(function(err) {
-    self._debug('Error retrieving queue: %o', err)
-    callback(err)
+
+  var queue = self.Queue(queueName)
+  self.findSongsMetadata(queue.all(), function(err, metadatas) {
+    callback(err, metadatas)
   })
 }
 

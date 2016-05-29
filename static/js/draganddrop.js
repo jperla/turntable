@@ -36,10 +36,12 @@ var draganddrop = function(dropAreaId, songdb, dragOverCallback, metadataCallbac
       function(err, metadata) {
         if (err) {
           console.log('Could not upload that song')
+        } else {
+          songdb.addToHeadOfQueue('default', metadata.hash, function() {
+            meshNode._debug("Did add song to queue: %s %o", metadata.hash, metadata)
+            metadataCallback(metadata)
+          })
         }
-
-        var id3 = metadata.id3
-        metadataCallback(metadata)
     })
   }
 
