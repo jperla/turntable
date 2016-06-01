@@ -79,7 +79,7 @@ function SongDB(opts) {
   self.queues = {'default': []}
 
   self.storeQueues = localforage.createInstance({
-    name: self.id + "-queues4"
+    name: self.id + "-queues5"
   })
 
   self.storeMetadata = localforage.createInstance({
@@ -207,22 +207,30 @@ SongDB.prototype.Queue = function(queueName) {
     }).catch(errmsg(callback))
   })
 
-  var getHead = promise(this, function(callback) {
-    self.storeQueues.getItem(queueHead()).then(function(headHash) {
-      if (headHash) {
-        self.storeQueues.getItem(queueHash(headHash)).then(function(links) {
-          console.log('found headHash in getHead: %s %o', headHash, links)
-          callback(null, headHash, links)
+  var _getHashAndLinksForPseudonym = function(hashPseudonym, callback) {
+    self.storeQueues.getItem(hashPseudonym).then(function(hash) {
+      if (hash) {
+        self.storeQueues.getItem(queueHash(hash)).then(function(links) {
+          console.log('found hash in _getHashAndLinks: %s %o', hash, links)
+          callback(null, hash, links)
         }).catch(errmsg(callback))
       } else {
-        console.log('null found null no head')
+        console.log('pseudonym found null no pseudonym')
         callback(null, null, [null, null])
       }
     }).catch(function(err) {
-      // head doesnt exist, empty list
-      console.log('found null no head')
+      // pseudonym doesnt exist, empty list
+      console.log('found null no tail')
       callback(null, null, [null, null])
     })
+  }
+
+  var getTail = promise(this, function(callback) {
+    _getHashAndLinksForPseudonym(queueTail(), callback)
+  })
+
+  var getHead = promise(this, function(callback) {
+    _getHashAndLinksForPseudonym(queueHead(), callback)
   })
 
   var _appendNextCache = function(links, cache, callback) {
@@ -303,13 +311,13 @@ SongDB.prototype.Queue = function(queueName) {
     // Splice a doubly linked list on next node, assuming prev node already splice
     if (nextHash === null) {
       // this is a tail node, set a new tail
-      setTail(prevHash).then(function(err) {
-        callback(err)
+      setTail(prevHash).then(function() {
+        callback(null)
       }).catch(errmsg(callback))
     } else {
       getHash(nextHash).then(function(links) {
-        setHash(nextHash, [prevHash, links[1]]).then(function(err) {
-          callback(err)
+        setHash(nextHash, [prevHash, links[1]]).then(function() {
+          callback()
         }).catch(errmsg(callback))
       }).catch(errmsg(callback))
     }
@@ -330,6 +338,7 @@ SongDB.prototype.Queue = function(queueName) {
 
   return {
     'getHead': getHead,
+    'getTail': getTail,
     'getHash': getHash,
     'setHash': setHash,
     'length': length,
@@ -428,6 +437,46 @@ SongDB.prototype.removeFromQueue = function(queueName, hash, callback) {
   }).catch(errmsg(callback))
 }
 
+SongDB.prototype.appendToBottomOfQueue = function(queueName, hash, callback) {
+  var self = this
+  var queue = self.Queue(queueName)
+  // TODO: lock the queue operations? queue up the queue operations?
+
+  if(queue.length() > 0) {
+    assert(!queue.contains(hash))
+    queue.getTail().then(function(tailHash, tailLinks) {
+      queue.setHash(hash, [tailHash, null]).then(function() {
+        queue.setHash(tailHash, [tailLinks[0], hash]).then(function() {
+          queue.setTail(hash).then(function() {
+            self.queues[queueName].push(hash)
+            callback(null)
+          }).catch(errmsg(callback))
+        }).catch(errmsg(callback))
+      }).catch(errmsg(callback))
+    }).catch(errmsg(callback))
+  } else {
+    self.addToHeadOfQueue(queueName, hash, callback)
+  }
+}
+
+SongDB.prototype.moveTopToBottomOfQueue = function(queueName, callback) {
+  var self = this
+  var queue = self.Queue(queueName)
+  // TODO: lock the queue operations? queue up the queue operations?
+
+  assert(queue.length() > 0)
+  queue.getHead().then(function(headHash, headLinks) {
+    assert(headLinks[0] === null)
+    self.removeFromQueue(queueName, headHash, function(err) {
+      if(err) {
+        callback(err)
+      } else {
+        self.appendToBottomOfQueue(queueName, headHash, callback)
+      }
+    })
+  })
+}
+
 SongDB.prototype.moveToTopOfQueue = function(queueName, hash, callback) {
   var self = this
   var queue = self.Queue(queueName)
@@ -487,14 +536,25 @@ SongDB.prototype.ensureUpgraded = function(callback) {
     }).then(function() {
       self._debug('Will fill all queues')
       // TODO: fill all queues
-      var queue = self.Queue('default')
-      self.queues['default'] = []
+      var queueName = 'default'
+      var queue = self.Queue(queueName)
+      self.queues[queueName] = []
       queue.fillCache(self.queues['default'], function(err) {
         if (err) {
           callback(err)
         } else {
           self._debug("Finished starting iteration of songdb")
-          callback(null, self)
+          var tail = null
+          if (queue.length() > 0) {
+            tail = self.queues[queueName][queue.length() - 1]
+          }
+          queue.setTail(tail, function(err) {
+            if (err) {
+              self._debug("Could not set tail")
+            } else {
+              callback(null, self)
+            }
+          })
         }
       })
     }).catch(function(err) {

@@ -157,7 +157,15 @@ div {
     width: 80px;
 }
 
+@-webkit-keyframes playv {
+  from { background-position-y:    0px; }
+  to { background-position-y: -780px; }
+}
 
+@-webkit-keyframes playh {
+  from { background-position-x:    0px; }
+  to { background-position-x: -632px; }
+}
 
 #side-nav {
 	background-image: url("images/latest/chat-nav.png");

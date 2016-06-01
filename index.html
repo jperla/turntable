@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <link rel="stylesheet" type="text/css" href="static/twopointoh.css">
 
-<script src="https://cdn.socket.io/socket.io-1.4.5.js"></script>
+<script type="text/javascript" src="static/js/socket.io-1.4.5.js"></script>
 
 <script type="text/javascript" src="static/js/ecc.js"></script>
 <script type="text/javascript" src="static/js/sha256.js"></script>
@@ -23,7 +23,7 @@
 
 <script type="text/javascript" src="static/js/draganddrop.js"></script>
 
-<script src="https://code.jquery.com/jquery-2.2.3.min.js" integrity="sha256-a23g1Nt4dtEYOj7bR+vTu7+T8VP13humZFBJNIYoEJo=" crossorigin="anonymous"></script>
+<script type="text/javascript" src="static/js/jquery-2.2.3.min.js"></script>
 
 <script type="text/javascript">
 var sendSong;
@@ -144,6 +144,9 @@ var initialize = function(songdb, callback) {
 var saveSignalingServer 
 var chat
 var connectToSignalingAnchor
+var songEnded
+var sendUpVote 
+var sendDownVote 
 
 jQuery(function() {
   var songdb = SongDB({'id': 'ttfm'})
@@ -154,6 +157,17 @@ jQuery(function() {
     }
 
     var isMeshHost = prefs.isHost
+
+    if (isMeshHost) {
+      location.hash = prefs.meshNodeId
+    }
+
+    if (!location.hash) {
+      $('body').css('opacity', '0.5')
+      $('body').css('pointer-events', 'none')
+      alert("I'm sorry, you do not have access to this private Turntable2.FM room. Please ask your friends for an invitation link and try again later.")
+      assert(false)
+    }
 
     var baseURL = location.href
     if (location.hash) {
@@ -173,6 +187,40 @@ jQuery(function() {
                              'name': prefs.name,
                              'id': prefs.meshNodeId
                             })
+
+    var avatars = {}
+
+    var makeAvatar = function(id, location) {
+      var loc = (location ? location : prefs.avatarLocation)
+      var avatar = $('<div id="avatar-' + id + '"></div>')
+      avatar.css('position', 'absolute')
+      avatar.css('width', 158)
+      avatar.css('height', 130)
+      avatar.css('background-image', 'url("static/images/2031_back_rock.png")')
+      avatar.css('left', 400 + (loc[0] * 400))
+      avatar.css('top', 600 + (loc[1] * 100))
+      $('body').append(avatar)
+      return avatar
+    }
+
+    var dancer = null
+    var startDancing = function(id, loc) {
+      if (!(id in avatars)) {
+        avatars[id] = makeAvatar(id, loc)
+      }
+      var avatar = avatars[id]
+      avatar.css('-webkit-animation', 'playv 1.5s steps(6) infinite, playh 0.25s steps(4) infinite')
+    }
+
+    var stopDancing = function(id, loc) {
+      if (!(id in avatars)) {
+        avatars[id] = makeAvatar(id, loc)
+      }
+      var avatar = avatars[id]
+      avatar.css('animation', 'none')
+    }
+
+    startDancing(prefs.meshNodeId)
 
     var currentName = prefs.name
     $('#name').val(currentName)
@@ -209,6 +257,26 @@ jQuery(function() {
       meshNode.listenToSignalingServer()
     }
 
+    songEnded = function() {
+      stopDancing()
+
+      // pick new song
+      songdb.moveTopToBottomOfQueue('default', function(err) {
+        if (err) {
+          songdb._debug('Move to bottom of queue failed')
+        } else {
+          songdb.queue('default', function(err, fullQueue) {
+            if (err || fullQueue.length === 0) {
+              songdb._debug('Queue not found')
+            } else {
+              var firstSong = fullQueue[0]
+              sendSong(firstSong.hash)
+            }
+          })
+        }
+      })
+    }
+
     function playSong(data) {
       blobToDataURI(data, function(dataURI) {
         playSongURI(dataURI)
@@ -217,7 +285,8 @@ jQuery(function() {
 
     function playSongURI(dataURI) {
       $('#audio').html("")
-      var g = $('<audio id="mysong" autoplay src="' + dataURI + '">')
+      console.log('Playing new song: %s', dataURI.slice(0, 30))
+      var g = $('<audio id="mysong" autoplay src="' + dataURI + '" onended="return songEnded()">')
       $('#audio').append(g)
     }
 
@@ -317,20 +386,22 @@ jQuery(function() {
                     meshNode._debug('Playing song after download')
                     playSong(downloadedData)
                   }
-                  songdb.addSong(
-                    downloadedData,
-                    {'source': data.source,
-                     'temporary': true,
-                     'downloadable': (data.downloadable || true)},
-                    function(err, metadata) {
-                      if(err) {
-                        meshNode._debug("Error adding song to db: %s", err)
-                      } else {
-                        meshNode._debug("Added song to db: %o", metadata)
-                        songdb.addToHeadOfQueue('default', metadata.hash)
+                  if (data.downloadable) {
+                    songdb.addSong(
+                      downloadedData,
+                      {'source': data.source,
+                       'temporary': true,
+                       'downloadable': (data.downloadable || true)},
+                      function(err, metadata) {
+                        if(err) {
+                          meshNode._debug("Error adding song to db: %s", err)
+                        } else {
+                          meshNode._debug("Added song to db: %o", metadata)
+                          songdb.addToHeadOfQueue('default', metadata.hash)
+                        }
                       }
-                    }
-                  )
+                    )
+                  }
                 })
               }
             })
@@ -402,6 +473,12 @@ jQuery(function() {
       } else if (data.action === 'changeName') {
         // TODO: remove slice, use getShortId()
         announceNameChange(data.source.slice(0, 10), data.oldName, data.newName)
+      } else if (data.action === 'up') {
+        addToChat(data.name, "&#x1f44d;")
+        startDancing(data.source, data.avatarLocation)
+      } else if (data.action === 'down') {
+        addToChat(data.name, "&#x1f44e;")
+        stopDancing(data.source, data.avatarLocation)
       }
     })
 
@@ -539,6 +616,42 @@ jQuery(function() {
       }
     }
 
+    sendUpVote = function() {
+      if (meshNode.isNodeHost()) {
+        meshNode.sendToAllPeers({
+          'action': 'up',
+          'source': meshNode.getId(),
+          'name': getName(),
+          'avatarLocation': prefs.avatarLocation
+        })
+      } else {
+        meshNode.broadcastToMeshThroughHost({
+          'action': 'up',
+          'source': meshNode.getId(),
+          'name': getName(),
+          'avatarLocation': prefs.avatarLocation
+        })
+      }
+    }
+
+    sendDownVote = function() {
+      if (meshNode.isNodeHost()) {
+        meshNode.sendToAllPeers({
+          'action': 'down',
+          'source': meshNode.getId(),
+          'name': getName(),
+          'avatarLocation': prefs.avatarLocation
+        })
+      } else {
+        meshNode.broadcastToMeshThroughHost({
+          'action': 'down',
+          'source': meshNode.getId(),
+          'name': getName(),
+          'avatarLocation': prefs.avatarLocation
+        })
+      }
+    }
+
     var durationText = function(duration) {
       var min = (Math.floor(duration / 60))
       var sec = Math.floor(duration % 60)
@@ -583,8 +696,14 @@ jQuery(function() {
       })
     }
 
-    $('#up').bind('click', function(e) { sendMessage("&#x1f44d;") })
-    $('#down').bind('click', function(e) { sendMessage("&#x1f44e;") })
+    $('#up').bind('click', function(e) {
+      startDancing(prefs.meshNodeId)
+      sendUpVote()
+    })
+    $('#down').bind('click', function(e) {
+      stopDancing(prefs.meshNodeId)
+      sendDownVote()
+    })
 
     $('#query').bind('keypress', function(e) {
       var code = e.keyCode || e.which
@@ -721,7 +840,7 @@ jQuery(function() {
           </table>
           <div id="submitbutton">
             <form>
-              <input name="name" type="text" id="name" value="Z" size=15 />
+              <input name="name" type="text" id="name" value="Unauthenticated" size=15 />
               <input name="chatmessage" autocomplete="off" type="text" id="chatmessage" size="60" />
               <input onclick="return chat()" name="chatsubmit" type="submit"  id="chatsubmit" value="Send" />
             </form>
@@ -766,7 +885,7 @@ jQuery(function() {
             </div>
         </div>
         <div id="side-queue" style="display:none;">
-            <input id="query" type="text" placeholder="Default" />
+            <input id="query" type="text" placeholder="Search" />
             <table id="songqueue">
             </table>
         </div>
