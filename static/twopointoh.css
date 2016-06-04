@@ -254,7 +254,7 @@ div {
 	top: 475px;
 	left: 480px;
 }
-#record-pile {
+#record-pile0 {
 	background-image: url("images/latest/record-pile.png");
 	width: 62px;
 	height: 54px;
@@ -262,10 +262,26 @@ div {
 	top: 435px;
 	left: 505px;
 }
-#record-pile:active{
+#record-pile0.active{
 	background-image: url("images/latest/laptop-windows.png");
 	width: 70px;
 	height: 50px;
+}
+#record-pile1 {
+	background-image: url("images/latest/record-pile.png");
+	width: 62px;
+	height: 54px;
+	background-size: contain;
+	top: 435px;
+	left: 905px;
+}
+#record-pile1.active{
+	background-image: url("images/latest/laptop-chrome.png");
+	width: 70px;
+	height: 50px;
+	background-size: contain;
+	top: 435px;
+	left: 900px;
 }
 #record-pile2 {
 	background-image: url("images/latest/record-pile.png");
@@ -275,7 +291,7 @@ div {
 	top: 435px;
 	left: 600px;
 }
-#record-pile2:active{
+#record-pile2.active{
 	background-image: url("images/latest/laptop-android.png");
 	width: 32px;
 	height: 62px;
@@ -290,7 +306,7 @@ div {
 	top: 435px;
 	left: 705px;
 }
-#record-pile3:active{
+#record-pile3.active{
 	background-image: url("images/latest/laptop-mac.png");
 	width: 70px;
 	height: 50px;
@@ -306,29 +322,13 @@ div {
 	top: 435px;
 	left: 805px;
 }
-#record-pile4:active{
+#record-pile4.active{
 	background-image: url("images/latest/laptop-iphone.png");
 	width: 29px;
 	height: 59px;
 	background-size: contain;
 	top: 430px;
 	left: 820px;
-}
-#record-pile5 {
-	background-image: url("images/latest/record-pile.png");
-	width: 62px;
-	height: 54px;
-	background-size: contain;
-	top: 435px;
-	left: 905px;
-}
-#record-pile5:active{
-	background-image: url("images/latest/laptop-chrome.png");
-	width: 70px;
-	height: 50px;
-	background-size: contain;
-	top: 435px;
-	left: 900px;
 }
 
 

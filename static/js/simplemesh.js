@@ -146,6 +146,27 @@ MeshNode.prototype.broadcastToMeshThroughHost = function(encodedMessageDictionar
   }
 }
 
+MeshNode.prototype.sendToPeer = function(peer, encodedMessageDictionary) {
+  var self = this
+
+  try {
+    peer.sendJSON(encodedMessageDictionary)
+  } catch(err) {
+    self._debug("Message to peer %o failed (%o): %o", peer, err, encodedMessageDictionary)
+	}
+}
+
+MeshNode.prototype.sendToHost = function(encodedMessageDictionary) {
+  var self = this
+  self.sendToPeer(self.hostPeer, encodedMessageDictionary)
+}
+
+MeshNode.prototype.sendToMeshNodeId = function(nodeId, encodedMessageDictionary) {
+  var self = this
+
+  self.sendToPeer(self.meshNodeIdToPeer[nodeId], encodedMessageDictionary)
+}
+
 MeshNode.prototype.sendToAllPeers = function(encodedMessageDictionary, exceptPeer) {
   var self = this
   for (var i=0; i<self.peers.length; i++) {
@@ -153,11 +174,7 @@ MeshNode.prototype.sendToAllPeers = function(encodedMessageDictionary, exceptPee
       continue
     }
 
-    try {
-      self.peers[i].sendJSON(encodedMessageDictionary)
-    } catch(err) {
-      self._debug("Message to peer %i %o failed (%o): %o", i, self.peers[i], err, encodedMessageDictionary)
-    }
+    self.sendToPeer(self.peers[i], encodedMessageDictionary)
 	}
 }
 

@@ -147,6 +147,12 @@ var connectToSignalingAnchor
 var songEnded
 var sendUpVote 
 var sendDownVote 
+var sendDJRequest
+
+var NUMDJS = 5
+var activeDJ = 0
+var djs = [null, null, null, null, null]
+assert(djs.length === NUMDJS)
 
 jQuery(function() {
   var songdb = SongDB({'id': 'ttfm'})
@@ -187,6 +193,8 @@ jQuery(function() {
                              'name': prefs.name,
                              'id': prefs.meshNodeId
                             })
+
+    djs[0] = meshNode.getId()
 
     var avatars = {}
 
@@ -257,9 +265,7 @@ jQuery(function() {
       meshNode.listenToSignalingServer()
     }
 
-    songEnded = function() {
-      stopDancing()
-
+    var pickNewSong = function() {
       // pick new song
       songdb.moveTopToBottomOfQueue('default', function(err) {
         if (err) {
@@ -275,6 +281,28 @@ jQuery(function() {
           })
         }
       })
+    }
+
+    songEnded = function() {
+      stopDancing(prefs.meshNodeId)
+
+      if (meshNode.isNodeHost()) {
+        // only the host chooses who plays next
+        do {
+          activeDJ += 1
+          if (activeDJ >= djs.length) { activeDJ = 0 }
+        } while (djs[activeDJ] === null)
+
+        if (djs[activeDJ] === meshNode.getId()) {
+          // I'm the next DJ! I'll pick!
+          pickNewSong()
+        } else {
+          meshNode.sendToMeshNodeId(djs[activeDJ], {
+            'action': 'pick',
+            'source': meshNode.getId(),
+          })
+        }
+      }
     }
 
     function playSong(data) {
@@ -479,7 +507,47 @@ jQuery(function() {
       } else if (data.action === 'down') {
         addToChat(data.name, "&#x1f44e;")
         stopDancing(data.source, data.avatarLocation)
+      } else if (data.action === 'dj') {
+        if (meshNode.isNodeHost()) {
+          askToDJ(data.source, data.djIndex)
+        } else {
+          meshNode._debug("Error: asked to dj but I'm not the host!")
+        }
+        updateDJsView()
+      } else if (data.action === 'djs') {
+        if (meshNode.isNodeHost()) {
+          meshNode._debug('Error: djs set received by node host!')
+        } else {
+          for(var i=0; i<NUMDJS; i++) {
+            djs[i] = data.djs[i]
+          }
+          updateDJsView()
+        }
+      } else if (data.action === 'pick') {
+        pickNewSong()
+      } else if (data.action === 'alert') {
+        if (meshNode.isNodeHost()) {
+          meshNode._debug('Error: alert received by node host!')
+        } else {
+          alert(data.text)
+        }
       }
+    })
+
+    var updateDJsView = function() {
+      for(var i=0; i<NUMDJS; i++) {
+        if(djs[i] !== null) {
+          $('#record-pile' + i).addClass('active')
+        } else {
+          $('#record-pile' + i).removeClass('active')
+        }
+      }
+    }
+
+    $.each(djs, function(i) {
+      $('#record-pile' + i).bind('click', function() {
+        sendDJRequest(i)
+      })
     })
 
     connectToSignalingAnchor = function() {
@@ -543,6 +611,39 @@ jQuery(function() {
           console.log("Failed to update metadata for hash %s: %o (%s)", hash, metadata, err)
         }
       })
+    }
+
+    var askToDJ = function(meshNodeId, djIndex) {
+      assert(meshNode.isNodeHost())
+      if(djs[djIndex]) {
+        // sorry, dj spot taken
+        meshNode.sendToMeshNodeId(meshNodeId, {
+          'action': 'alert',
+          'source': meshNode.getId(),
+          'text': 'Sorry! That spot is already taken',
+        })
+      } else {
+        djs[djIndex] = meshNodeId
+      }
+
+      // TODO: may not need to send to all
+      meshNode.sendToAllPeers({
+        'action': 'djs',
+        'source': meshNode.getId(),
+        'djs': djs,
+      })
+    }
+
+    sendDJRequest = function(djIndex) {
+      if (meshNode.isNodeHost()) {
+        askToDJ(meshNode.getId(), djIndex)
+      } else {
+        meshNode.sendToHost({
+          'action': 'dj',
+          'source': meshNode.getId(),
+          'djIndex': djIndex,
+        })
+      }
     }
 
     sendSong = function(hash) {
@@ -752,6 +853,7 @@ jQuery(function() {
 
     $('#chatmessage').focus()
     connectToSignalingAnchor()
+    pickNewSong()
   })
 })
 
@@ -797,19 +899,19 @@ jQuery(function() {
 <div id="progress"></div>
 <div id="up"></div>
 <div id="down"></div>
-<div id="record-pile">
+<div id="record-pile0">
     <div id="laptop-windows"></div>
 </div>
-<div id="record-pile2">
+<div id="record-pile1">
     <div id="laptop-android"></div>
 </div>
-<div id="record-pile3">
+<div id="record-pile2">
     <div id="laptop-mac"></div>
 </div>
-<div id="record-pile4">
+<div id="record-pile3">
     <div id="laptop-iphone"></div>
 </div>
-<div id="record-pile5">
+<div id="record-pile4">
     <div id="laptop-chrome"></div>
 </div>
 <div id="side-menu">
