@@ -67,10 +67,11 @@ var newHost = function(isInitiator) {
   })
 }
 
-defaults = {'allowDownloads': true,
-            'name': 'Mary Johnson',
-            'avatar': 'default',
-            'isHost': false,
+defaults = {
+  'allowDownloads': true,
+  'name': 'Mary Johnson',
+  'avatarId': '2031',
+  'isHost': false,
 }
 
 var preferencesStore
@@ -114,8 +115,8 @@ var initialize = function(songdb, callback) {
       } else {
         prefs.keys = publicKeys
 
-        if (!prefs.avatarLocation) {
-          prefs.avatarLocation = [Math.random(), Math.random()]
+        if (!prefs.dancerLocation) {
+          prefs.dancerLocation = [Math.random(), Math.random()]
         }
 
         if (!prefs.meshNodeId) {
@@ -148,6 +149,11 @@ var songEnded
 var sendUpVote 
 var sendDownVote 
 var sendDJRequest
+
+var avatars = {
+  '8': [92, 119],
+  '2031': [158, 130],
+}
 
 var NUMDJS = 5
 var activeDJ = 0
@@ -196,39 +202,46 @@ jQuery(function() {
 
     djs[0] = meshNode.getId()
 
-    var avatars = {}
+    var dancers = {}
 
-    var makeAvatar = function(id, location) {
-      var loc = (location ? location : prefs.avatarLocation)
-      var avatar = $('<div id="avatar-' + id + '"></div>')
-      avatar.css('position', 'absolute')
-      avatar.css('width', 158)
-      avatar.css('height', 130)
-      avatar.css('background-image', 'url("static/images/2031_back_rock.png")')
-      avatar.css('left', 400 + (loc[0] * 400))
-      avatar.css('top', 600 + (loc[1] * 100))
-      $('body').append(avatar)
-      return avatar
+    var setDancerAvatar = function(dancer, avatarId) {
+      dancer.css('background-image', 'url("static/images/' + avatarId + '_back_rock.png")')
+      var size = avatars[avatarId]
+      dancer.css('width', size[0])
+      dancer.css('height', size[1])
+    }
+
+    var makeDancer = function(id, avatarId, location) {
+      var loc = (location ? location : prefs.dancerLocation)
+      var dancer = $('<div id="dancer-' + id + '"></div>')
+      dancer.css('position', 'absolute')
+      setDancerAvatar(dancer, avatarId)
+      dancer.css('left', 400 + (loc[0] * 400))
+      dancer.css('top', 600 + (loc[1] * 100))
+      $('body').append(dancer)
+      return dancer
     }
 
     var dancer = null
-    var startDancing = function(id, loc) {
-      if (!(id in avatars)) {
-        avatars[id] = makeAvatar(id, loc)
+    var startDancing = function(id, avatarId, loc) {
+      console.log('starting dancing: %o %o %o', id, avatarId, loc)
+      if (!(id in dancers)) {
+        dancers[id] = makeDancer(id, avatarId, loc)
       }
-      var avatar = avatars[id]
-      avatar.css('-webkit-animation', 'playv 1.5s steps(6) infinite, playh 0.25s steps(4) infinite')
+      var dancer = dancers[id]
+      setDancerAvatar(dancer, avatarId)
+      dancer.css('-webkit-animation', 'playv' + avatarId + ' 1.5s steps(6) infinite, playh' + avatarId + ' 0.25s steps(4) infinite')
     }
 
-    var stopDancing = function(id, loc) {
-      if (!(id in avatars)) {
-        avatars[id] = makeAvatar(id, loc)
+    var stopDancing = function(id, avatarId, loc) {
+      if (!(id in dancers)) {
+        dancers[id] = makeDancer(id, avatarId, loc)
       }
-      var avatar = avatars[id]
-      avatar.css('animation', 'none')
+      var dancer = dancers[id]
+      dancer.css('animation', 'none')
     }
 
-    startDancing(prefs.meshNodeId)
+    startDancing(prefs.meshNodeId, prefs.avatarId, prefs.dancerLocation)
 
     var currentName = prefs.name
     $('#name').val(currentName)
@@ -284,7 +297,8 @@ jQuery(function() {
     }
 
     songEnded = function() {
-      stopDancing(prefs.meshNodeId)
+      stopDancing(prefs.meshNodeId, prefs.avatarId, prefs.dancerLocation)
+      // TODO: tell everyone else I stopped dancing
 
       if (meshNode.isNodeHost()) {
         // only the host chooses who plays next
@@ -503,10 +517,10 @@ jQuery(function() {
         announceNameChange(data.source.slice(0, 10), data.oldName, data.newName)
       } else if (data.action === 'up') {
         addToChat(data.name, "&#x1f44d;")
-        startDancing(data.source, data.avatarLocation)
+        startDancing(data.source, data.avatarId, data.dancerLocation)
       } else if (data.action === 'down') {
         addToChat(data.name, "&#x1f44e;")
-        stopDancing(data.source, data.avatarLocation)
+        stopDancing(data.source, data.avatarId, data.dancerLocation)
       } else if (data.action === 'dj') {
         if (meshNode.isNodeHost()) {
           askToDJ(data.source, data.djIndex)
@@ -566,12 +580,16 @@ jQuery(function() {
       scrollToBottomOfChat()
     }
 
-    var updatePrefs = function(d) {
+    var updatePrefs = function(d, callback) {
       // save name change locally
       preferencesStore.getItem(PREFSKEY).then(function(p) {
         p = merge_options(p, d)
         preferencesStore.setItem(PREFSKEY, p).then(function() {
           console.log("Saved prefs: %o", p)
+          prefs = merge_options(prefs, p)
+          if (callback) {
+            callback(null)
+          }
         }).catch(function(err) {
           console.log("Failed to save prefs: %s", err)
         })
@@ -723,14 +741,16 @@ jQuery(function() {
           'action': 'up',
           'source': meshNode.getId(),
           'name': getName(),
-          'avatarLocation': prefs.avatarLocation
+          'avatarId': prefs.dancerLocation,
+          'dancerLocation': prefs.dancerLocation
         })
       } else {
         meshNode.broadcastToMeshThroughHost({
           'action': 'up',
           'source': meshNode.getId(),
           'name': getName(),
-          'avatarLocation': prefs.avatarLocation
+          'avatarId': prefs.dancerLocation,
+          'dancerLocation': prefs.dancerLocation
         })
       }
     }
@@ -741,14 +761,14 @@ jQuery(function() {
           'action': 'down',
           'source': meshNode.getId(),
           'name': getName(),
-          'avatarLocation': prefs.avatarLocation
+          'dancerLocation': prefs.dancerLocation
         })
       } else {
         meshNode.broadcastToMeshThroughHost({
           'action': 'down',
           'source': meshNode.getId(),
           'name': getName(),
-          'avatarLocation': prefs.avatarLocation
+          'dancerLocation': prefs.dancerLocation
         })
       }
     }
@@ -798,11 +818,11 @@ jQuery(function() {
     }
 
     $('#up').bind('click', function(e) {
-      startDancing(prefs.meshNodeId)
+      startDancing(prefs.meshNodeId, prefs.avatarId, prefs.dancerLocation)
       sendUpVote()
     })
     $('#down').bind('click', function(e) {
-      stopDancing(prefs.meshNodeId)
+      stopDancing(prefs.meshNodeId, prefs.avatarId, prefs.dancerLocation)
       sendDownVote()
     })
 
@@ -853,6 +873,40 @@ jQuery(function() {
 
     $('#chatmessage').focus()
     connectToSignalingAnchor()
+
+    for(var avatarId in avatars) {
+      var option = $('<option value="' + avatarId + '">' + avatarId + '</option>')
+      if (avatarId === prefs.avatarId) {
+        option.attr('selected', true)
+      }
+      $('#avatarPicker').append(option)
+    }
+
+    var showMyAvatar = function() {
+      var avatarId = $('#avatarPicker').val()
+      var size = avatars[avatarId]
+      var myAvatar = $('#myAvatar')
+      myAvatar.css('background-image', 'url("static/images/' + avatarId + '_back_rock.png")')
+      myAvatar.css('width', size[0])
+      myAvatar.css('height', size[1])
+    }
+
+    $('#avatarPicker').bind('change', function() {
+      var avatarId = $('#avatarPicker').val()
+      showMyAvatar()
+      updatePrefs({'avatarId': avatarId}, function(err) {
+        if (err) {
+          console.log('Failed to choose new avatar and save')
+        } else {
+          console.log('Will show new dancing avatar to everyone')
+          startDancing(meshNode.getId(), prefs.avatarId, prefs.dancerLocation)
+          sendUpVote()
+        }
+      })
+    })
+
+    showMyAvatar()
+      
     pickNewSong()
   })
 })
@@ -984,6 +1038,11 @@ jQuery(function() {
                 <br />
                 <br />
                 <code id="outgoing"></code>
+
+                <br />
+                <br />
+                <select id="avatarPicker"></select>
+                <div id="myAvatar"></div>
             </div>
         </div>
         <div id="side-queue" style="display:none;">
