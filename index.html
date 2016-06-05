@@ -604,7 +604,7 @@ jQuery(function() {
         updateDJsView()
 
         // update dancers
-        for (dancerId in dancers) {
+        for (dancerId in data.dancers) {
           var dancerData = dancers[dancerId]
           if (dancerData.isDancing) {
             startDancing(dancerData.id, dancerData.avatarId, dancerData.location)
