@@ -365,7 +365,7 @@ jQuery(function() {
     }
     
     function playSong(data) {
-      console.log('Playing new song: %s %o', data.hash, data)
+      console.log('Playing new song: %o', data)
       blobToDataURI(data, function(dataURI) {
         playSongURI(dataURI)
       })
