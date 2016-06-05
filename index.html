@@ -177,7 +177,7 @@ jQuery(function() {
         hashMeshNodeId = hashSplit[0]
         hashAnchor = hashSplit[1]
       } else {
-        hashMeshNodeId = location.hash
+        hashMeshNodeId = location.hash.slice(1)
       }
 
       if (hashMeshNodeId === prefs.meshNodeId && prefs.isHost) {
