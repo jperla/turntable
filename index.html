@@ -275,7 +275,9 @@ jQuery(function() {
       saveSignalingServer()
     } else {
       // listen to something in URL
+      console.log('ASDFASDF A')
       if (hashMeshNodeId) {
+        console.log('ASDFASDF B')
         meshNode.saveForeignAnchor(hashMeshNodeId, anchorURL)
       }
     }
