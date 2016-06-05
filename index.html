@@ -614,7 +614,12 @@ jQuery(function() {
         }
         updateDJsView()
         if (data.dancers) {
-          dancers = merge_options(dancers, data.dancers)
+          for(var dancerId in data.dancers) {
+            if (dancerId in dancers) {
+              dancers[dancerId] = merge_options(dancers[dancerId], data.dancers[dancerId])
+            } else {
+              dancers[dancerId] = data.dancers[dancerId]
+            }
         }
         updateDancersView()
       } else if (data.action === 'alert') {
