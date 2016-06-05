@@ -235,6 +235,16 @@ jQuery(function() {
       return $('#dancer-' + base64ToHex(dancerData.id))
     }
 
+    var updateDancersView = function() {
+      $.each(dancers, function(id, dancerData) {
+        if (dancerData.isDancing) {
+          startDancing(dancerData.id, dancerData.avatarId, dancerData.location)
+        } else {
+          stopDancing(dancerData.id, dancerData.avatarId, dancerData.location)
+        }
+      })
+    }
+
     var makeDancer = function(id, avatarId, location) {
       var loc = (location ? location : prefs.dancerLocation)
       var dancerData = {
@@ -370,15 +380,18 @@ jQuery(function() {
     }
 
     meshNode.on('meshconnect', function(data) {
+      console.log("Just connected mesh to peer: %o", data)
       var peerId = data.meshNodeId
       // tell them state of the room
-      meshNode.sendToMeshNodeId(peerId, {
-        'action': 'room',
-        'source': meshNode.getId(),
-        'djs': djs,
-        'dancers': dancers,
-      })
-      meshNode.sendToMeshNodeId(peerId, makePlaySongData(hash, songMetadata.type))
+      if (meshNode.isNodeHost()) {
+        meshNode.sendToMeshNodeId(peerId, {
+          'action': 'room',
+          'source': meshNode.getId(),
+          'djs': djs,
+          'dancers': dancers,
+        })
+        meshNode.sendToMeshNodeId(peerId, makePlaySongData(currentSongHash, songMetadata.type))
+      }
     })
 
     meshNode.on('action', function(actionData) {
