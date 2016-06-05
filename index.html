@@ -152,6 +152,8 @@ var sendDJRequest
 
 var currentSong = null
 
+var dancers = {}
+
 var avatars = {
   '8': [92, 119],
   '2031': [158, 130],
@@ -221,8 +223,6 @@ jQuery(function() {
                             })
 
     djs[0] = meshNode.getId()
-
-    var dancers = {}
 
     var setDancerAvatar = function(dancer, avatarId) {
       dancer.css('background-image', 'url("static/images/' + avatarId + '_back_rock.png")')
