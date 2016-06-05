@@ -362,6 +362,10 @@ jQuery(function() {
       })
     }
 
+    var currentSongElapsedSeconds = function() {
+      return $('#audio audio').get(0).currentTime
+    }
+
     function playSongURI(dataURI) {
       $('#audio').html("")
       console.log('Playing new song: %s', dataURI.slice(0, 30))
@@ -380,7 +384,7 @@ jQuery(function() {
           'djs': djs,
           'dancers': dancers,
         })
-        meshNode.sendToMeshNodeId(peerId, makePlaySongData(currentSong))
+        meshNode.sendToMeshNodeId(peerId, makePlaySongData(currentSong, currentSongElapsedSeconds()))
       }
     })
 
@@ -737,7 +741,7 @@ jQuery(function() {
       }
     }
 
-    var makePlaySongData = function(metadata) {
+    var makePlaySongData = function(metadata, elapsed) {
       return {
         'action': 'play',
         'source': meshNode.getId(),
@@ -745,6 +749,7 @@ jQuery(function() {
         'type': metadata.type,
         'title': metadata.id3.tags.title,
         'artist': metadata.id3.tags.artist,
+        'elapsed': elapsed,
         'downloadable': $('#allowdownloads').prop('checked'),
       }
     }
