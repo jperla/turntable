@@ -246,6 +246,7 @@ jQuery(function() {
       var dancer = $('<div id="dancer-' + base64ToHex(id) + '"></div>')
       dancer.css('position', 'absolute')
       setDancerAvatar(dancer, avatarId)
+      dancer.css('z-index', Math.ceil(loc[1] * 1000))
       dancer.css('left', 400 + (loc[0] * 400))
       dancer.css('top', 600 + (loc[1] * 200))
       $('body').append(dancer)
