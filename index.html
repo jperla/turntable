@@ -275,6 +275,7 @@ jQuery(function() {
     }
 
     startDancing(prefs.meshNodeId, prefs.avatarId, prefs.dancerLocation)
+    sendUpVote() // TODO: broadcast dancing without upvote
 
     var currentName = prefs.name
     $('#name').val(currentName)
@@ -522,7 +523,7 @@ jQuery(function() {
               peerWithSong.sendJSON(data)
             }
           } else {
-            songdb.findSongMetadataNotID3(data.hash, function(err, songMetadata) {
+            songdb.findSongMetadata(data.hash, function(err, songMetadata) {
               if (err) {
                 meshNode._debug('songMetadata err: %s', err)
               } else {

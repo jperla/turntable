@@ -747,15 +747,25 @@ SongDB.prototype.findSongsMetadata = function(hashes, callback) {
   })
 }
 
-SongDB.prototype.findSongMetadataNotID3 = function(hash, callback) {
+SongDB.prototype.findSongMetadata = function(hash, callback) {
+
   var self = this
   self.findSongsMetadata([hash], function(err, metadatas) {
     var metadata = null
     if (metadatas) {
       metadata = metadatas[0]
+      metadata.hash = hash
+    }
+    callback(err, metadata)
+  })
+}
+
+SongDB.prototype.findSongMetadataNotID3 = function(hash, callback) {
+  var self = this
+  self.findSongMetadata(hash, function(err, metadata) {
+    if (metadata) {
       delete metadata.id3
     }
-    metadata.hash = hash
     callback(err, metadata)
   })
 }
