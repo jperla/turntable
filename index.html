@@ -247,7 +247,7 @@ jQuery(function() {
     }
 
     var makeDancer = function(id, avatarId, location) {
-      var loc = (location ? location : prefs.dancerLocation)
+      var loc = location
       var dancerData = {
         'id': id,
         'avatarId': avatarId,
@@ -258,7 +258,7 @@ jQuery(function() {
       dancer.css('position', 'absolute')
       setDancerAvatar(dancer, avatarId)
       dancer.css('left', 400 + (loc[0] * 400))
-      dancer.css('top', 600 + (loc[1] * 100))
+      dancer.css('top', 600 + (loc[1] * 300))
       $('body').append(dancer)
       return dancerData
     }
@@ -609,7 +609,7 @@ jQuery(function() {
         }
         updateDJsView()
         if (data.dancers) {
-          dancers = data.dancers
+          dancers = merge_options(dancers, data.dancers)
         }
         updateDancersView()
       } else if (data.action === 'alert') {
