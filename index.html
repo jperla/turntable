@@ -579,7 +579,7 @@ jQuery(function() {
         announceNameChange(data.source.slice(0, 10), data.oldName, data.newName)
       } else if (data.action === 'dancer') {
         if (data.vote !== null) {
-          if (vote) {
+          if (data.vote) {
             addToChat(data.name, "&#x1f44d;")
           } else {
             addToChat(data.name, "&#x1f44e;")
