@@ -168,15 +168,20 @@ jQuery(function() {
       return
     }
 
+    var isMeshHost
+    var hashMeshNodeId
+    var hashAnchor
     if (location.hash) {
       if (location.hash.indexOf('@') >= 0) {
-        var hashSplit = location.hash.split('@', 2)
-        var hashMeshNodeId = hashSplit[0]
-        var hashAnchor = hashSplit[1]
+        var hashSplit = location.hash.slice(1).split('@', 2)
+        hashMeshNodeId = hashSplit[0]
+        hashAnchor = hashSplit[1]
+      } else {
+        hashMeshNodeId = location.hash
       }
 
       if (hashMeshNodeId === prefs.meshNodeId && prefs.isHost) {
-        var isMeshHost = prefs.isHost
+        isMeshHost = true
       }
     } else {
       if (prefs.isHost) {
