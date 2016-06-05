@@ -387,7 +387,7 @@ jQuery(function() {
           'action': 'room',
           'source': meshNode.getId(),
           'djs': djs,
-          'dancers': dancers,
+          //'dancers': dancers,
         })
         meshNode.sendToMeshNodeId(peerId, makePlaySongData(currentSong.hash, currentSong.type))
       }
@@ -974,6 +974,7 @@ jQuery(function() {
     })
 
     showMyAvatar()
+    updateDJsView()
       
     if (isMeshHost) {
       pickNewSong()
