@@ -110,7 +110,7 @@ function MeshNode(peerFactory, opts) {
   })
 
   self.anchorStore = localforage.createInstance({
-      name: "anchorStore:" + self.id
+      name: "anchorStore2:" + self.id
   })
 
   /* Emit handlers */
