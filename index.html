@@ -380,7 +380,7 @@ jQuery(function() {
           'djs': djs,
           'dancers': dancers,
         })
-        meshNode.sendToMeshNodeId(peerId, makePlaySongData(currentSong.hash, currentSong.type))
+        meshNode.sendToMeshNodeId(peerId, makePlaySongData(currentSong))
       }
     })
 
@@ -737,12 +737,12 @@ jQuery(function() {
       }
     }
 
-    var makePlaySongData = function(hash, type) {
+    var makePlaySongData = function(metadata) {
       return {
         'action': 'play',
         'source': meshNode.getId(),
-        'hash': hash,
-        'type': type,
+        'hash': metadata.hash,
+        'type': metadata.type,
         'downloadable': $('#allowdownloads').prop('checked'),
       }
     }
@@ -758,7 +758,7 @@ jQuery(function() {
 
       songdb.findSongMetadataNotID3(hash, function(err, songMetadata) {
         currentSong = songMetadata
-        var d = makePlaySongData(hash, songMetadata.type)
+        var d = makePlaySongData(songMetadata)
         if (meshNode.isNodeHost()) {
           meshNode.sendToAllPeers(d)
         } else {
