@@ -755,6 +755,7 @@ SongDB.prototype.findSongMetadataNotID3 = function(hash, callback) {
       metadata = metadatas[0]
       delete metadata.id3
     }
+    metadata.hash = hash
     callback(err, metadata)
   })
 }
