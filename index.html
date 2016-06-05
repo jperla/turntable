@@ -258,7 +258,7 @@ jQuery(function() {
       dancer.css('position', 'absolute')
       setDancerAvatar(dancer, avatarId)
       dancer.css('left', 400 + (loc[0] * 400))
-      dancer.css('top', 600 + (loc[1] * 300))
+      dancer.css('top', 600 + (loc[1] * 200))
       $('body').append(dancer)
       return dancerData
     }
@@ -404,7 +404,7 @@ jQuery(function() {
         songdb.findSongData(data.hash, function(err, songData) {
           if (songData) {
             meshNode._debug('using cached local data for hash %o', data.hash)
-            if (songData.hash !== currentSong.hash) {
+            if (data.hash !== currentSong.hash) {
               playSong(songData)
             } else {
               meshNode._debug('Already playing this song!')
