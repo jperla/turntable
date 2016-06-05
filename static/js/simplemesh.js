@@ -544,7 +544,7 @@ MeshNode.prototype.connectThroughAnchor = function(anchor) {
                    'destination': destination,
                    'sdp': sdp}
       socket.emit('offer', offer)
-      self._debug('[BYOSS] Emitted offer: %o', offer)
+      self._debug('[BYOSS] Emitted offer to %s (%o): %o', anchor.signalingServer, anchor, offer)
     })
 
     socket.on('answer', function(answer) {
