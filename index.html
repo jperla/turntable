@@ -150,7 +150,7 @@ var sendUpVote
 var sendDownVote 
 var sendDJRequest
 
-var currentSongHash = null
+var currentSong = null
 
 var avatars = {
   '8': [92, 119],
@@ -366,7 +366,6 @@ jQuery(function() {
     
     function playSong(data) {
       console.log('Playing new song: %s %o', data.hash, data)
-      currentSongHash = data.hash
       blobToDataURI(data, function(dataURI) {
         playSongURI(dataURI)
       })
@@ -390,7 +389,7 @@ jQuery(function() {
           'djs': djs,
           'dancers': dancers,
         })
-        meshNode.sendToMeshNodeId(peerId, makePlaySongData(currentSongHash, songMetadata.type))
+        meshNode.sendToMeshNodeId(peerId, makePlaySongData(currentSong.hash, currentSong.type))
       }
     })
 
@@ -753,6 +752,7 @@ jQuery(function() {
       })
 
       songdb.findSongMetadataNotID3(hash, function(err, songMetadata) {
+        currentSong = songMetadata
         var d = makePlaySongData(hash, songMetadata.type)
         if (meshNode.isNodeHost()) {
           meshNode.sendToAllPeers(d)
