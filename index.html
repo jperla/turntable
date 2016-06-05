@@ -150,6 +150,8 @@ var sendUpVote
 var sendDownVote 
 var sendDJRequest
 
+var currentSongHash = null
+
 var avatars = {
   '8': [92, 119],
   '2031': [158, 130],
@@ -200,9 +202,14 @@ jQuery(function() {
       baseURL = location.href.split('#', 2)[0]
     }
 
+    var anchorURL = (hashAnchor ? hashAnchor : (isMeshHost ? 'http://shielded-woodland-44092.herokuapp.com/' : null))
     if (isMeshHost) {
       $('#sharelinkbox').show()
-      $('#sharelink').val(baseURL + '#' + prefs.meshNodeId)
+      var url = baseURL + '#' + prefs.meshNodeId
+      if (anchorURL) {
+        url += '@' + anchorURL
+      }
+      $('#sharelink').val(url)
     } else {
       $('#sharelinkbox').hide()
     }
@@ -224,15 +231,25 @@ jQuery(function() {
       dancer.css('height', size[1])
     }
 
+    var getDancerDiv = function(dancerData) {
+      return $('#dancer-' + base64ToHex(dancerData.id))
+    }
+
     var makeDancer = function(id, avatarId, location) {
       var loc = (location ? location : prefs.dancerLocation)
-      var dancer = $('<div id="dancer-' + id + '"></div>')
+      var dancerData = {
+        'id': id,
+        'avatarId': avatarId,
+        'location': location,
+        'isDancing': false,
+      }
+      var dancer = $('<div id="dancer-' + base64ToHex(id) + '"></div>')
       dancer.css('position', 'absolute')
       setDancerAvatar(dancer, avatarId)
       dancer.css('left', 400 + (loc[0] * 400))
       dancer.css('top', 600 + (loc[1] * 100))
       $('body').append(dancer)
-      return dancer
+      return dancerData
     }
 
     var dancer = null
@@ -241,7 +258,8 @@ jQuery(function() {
       if (!(id in dancers)) {
         dancers[id] = makeDancer(id, avatarId, loc)
       }
-      var dancer = dancers[id]
+      dancers[id].isDancing = true
+      var dancer = getDancerDiv(dancers[id])
       setDancerAvatar(dancer, avatarId)
       dancer.css('-webkit-animation', 'playv' + avatarId + ' 1.5s steps(6) infinite, playh' + avatarId + ' 0.25s steps(4) infinite')
     }
@@ -250,7 +268,8 @@ jQuery(function() {
       if (!(id in dancers)) {
         dancers[id] = makeDancer(id, avatarId, loc)
       }
-      var dancer = dancers[id]
+      dancers[id].isDancing = false
+      var dancer = getDancerDiv(dancers[id])
       dancer.css('animation', 'none')
     }
 
@@ -269,15 +288,12 @@ jQuery(function() {
       hashId = location.hash.split('#', 2)[1]
     }
 
-    var anchorURL = (hashAnchor ? hashAnchor : (isMeshHost ? 'http://shielded-woodland-44092.herokuapp.com/' : null))
     if (isMeshHost) {
       $('#signalingServer').val(anchorURL)
       saveSignalingServer()
     } else {
       // listen to something in URL
-      console.log('ASDFASDF A')
       if (hashMeshNodeId) {
-        console.log('ASDFASDF B')
         meshNode.saveForeignAnchor(hashMeshNodeId, anchorURL)
       }
     }
@@ -337,8 +353,10 @@ jQuery(function() {
         }
       }
     }
-
+    
     function playSong(data) {
+      console.log('Playing new song: %s %o', data.hash, data)
+      currentSongHash = data.hash
       blobToDataURI(data, function(dataURI) {
         playSongURI(dataURI)
       })
@@ -350,6 +368,18 @@ jQuery(function() {
       var g = $('<audio id="mysong" autoplay src="' + dataURI + '" onended="return songEnded()">')
       $('#audio').append(g)
     }
+
+    meshNode.on('meshconnect', function(data) {
+      var peerId = data.meshNodeId
+      // tell them state of the room
+      meshNode.sendToMeshNodeId(peerId, {
+        'action': 'room',
+        'source': meshNode.getId(),
+        'djs': djs,
+        'dancers': dancers,
+      })
+      meshNode.sendToMeshNodeId(peerId, makePlaySongData(hash, songMetadata.type))
+    })
 
     meshNode.on('action', function(actionData) {
       meshNode._debug('action: %o', actionData)
@@ -560,6 +590,11 @@ jQuery(function() {
         }
       } else if (data.action === 'pick') {
         pickNewSong()
+      } else if (data.action === 'room') {
+        djs = data.djs
+        updateDJsView()
+        dancers = data.dancers
+        updateDancersView()
       } else if (data.action === 'alert') {
         if (meshNode.isNodeHost()) {
           meshNode._debug('Error: alert received by node host!')
@@ -685,6 +720,16 @@ jQuery(function() {
       }
     }
 
+    var makePlaySongData = function(hash, type) {
+      return {
+        'action': 'play',
+        'source': meshNode.getId(),
+        'hash': hash,
+        'type': type,
+        'downloadable': $('#allowdownloads').prop('checked'),
+      }
+    }
+
     sendSong = function(hash) {
       songdb.findSongData(hash, function(err, songData) {
         if (songData) {
@@ -695,22 +740,11 @@ jQuery(function() {
       })
 
       songdb.findSongMetadataNotID3(hash, function(err, songMetadata) {
+        var d = makePlaySongData(hash, songMetadata.type)
         if (meshNode.isNodeHost()) {
-          meshNode.sendToAllPeers({
-            'action': 'play',
-            'source': meshNode.getId(),
-            'hash': hash,
-            'type': songMetadata.type,
-            'downloadable': $('#allowdownloads').prop('checked'),
-          })
+          meshNode.sendToAllPeers(d)
         } else {
-          meshNode.broadcastToMeshThroughHost({
-            'action': 'play',
-            'source': meshNode.getId(),
-            'hash': hash,
-            'type': songMetadata.type,
-            'downloadable': $('#allowdownloads').prop('checked'),
-          })
+          meshNode.broadcastToMeshThroughHost(d)
         }
       })
     }
@@ -928,7 +962,9 @@ jQuery(function() {
 
     showMyAvatar()
       
-    pickNewSong()
+    if (isMeshHost) {
+      pickNewSong()
+    }
   })
 })
 

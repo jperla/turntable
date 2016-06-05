@@ -431,7 +431,7 @@ MeshNode.prototype.getAnchorURL = function(callback) {
   self.anchorStore.getItem(MYANCHOR, callback)
 }
 
-MeshNode.prototype.saveAnchorURL = function(anchorURL) {
+MeshNode.prototype.saveAnchorURL = function(anchorURL, callback) {
   var self = this
   self.anchorStore.setItem(MYANCHOR,
                            anchorURL,
@@ -440,6 +440,9 @@ MeshNode.prototype.saveAnchorURL = function(anchorURL) {
                                self._debug("[ERROR] Could not save anchor url %o: %s", anchorURL, err)
                              } else {
                                self._debug("Saved anchor url %o", anchorURL)
+                               if (callback) {
+                                 callback(null)
+                               }
                              }
   })
 }
@@ -461,7 +464,7 @@ MeshNode.prototype.getForeignAnchors = function(callback) {
   })
 }
 
-MeshNode.prototype.saveForeignAnchor = function(meshNodeId, signalingServer) {
+MeshNode.prototype.saveForeignAnchor = function(meshNodeId, signalingServer, callback) {
   var self = this
   // TODO: validate anchor format
   var anchor = {'id': meshNodeId, 'signalingServer': signalingServer}
@@ -494,6 +497,9 @@ MeshNode.prototype.saveForeignAnchor = function(meshNodeId, signalingServer) {
                                                anchor, foreignAnchors, err)
                                  } else {
                                    self._debug("Saved foreign anchor %o to %o", anchor, foreignAnchors)
+                                   if (callback) {
+                                     callback(null)
+                                   }
                                  }
       })
     }
@@ -610,6 +616,9 @@ MeshNode.prototype.addPeer = function(p, signalFunc) {
           }
         }
       }
+
+      // TODO: security
+      self.emit('meshconnect', {'peer': p, 'meshNodeId': data.meshNodeId})
     } else if (data.action == 'offerHostConnection') {
       if (self.isHost) {
         self._debug('I am a host. I just got a distant guest offer')
