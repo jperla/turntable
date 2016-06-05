@@ -235,18 +235,6 @@ jQuery(function() {
       return $('#dancer-' + base64ToHex(dancerData.id))
     }
 
-    var updateDancersView = function() {
-      for (dancerId in dancers) {
-        var dancerData = dancers[dancerId]
-        console.log('dancerData: %o', dancerData)
-        if (dancerData.isDancing) {
-          startDancing(dancerData.id, dancerData.avatarId, dancerData.location)
-        } else {
-          stopDancing(dancerData.id, dancerData.avatarId, dancerData.location)
-        }
-      }
-    }
-
     var makeDancer = function(id, avatarId, location) {
       var loc = location
       var dancerData = {
@@ -613,16 +601,16 @@ jQuery(function() {
           djs = data.djs
         }
         updateDJsView()
-        if (data.dancers) {
-          for(var dancerId in data.dancers) {
-            if (dancerId in dancers) {
-              dancers[dancerId] = merge_options(dancers[dancerId], data.dancers[dancerId])
-            } else {
-              dancers[dancerId] = data.dancers[dancerId]
-            }
+
+        // update dancers
+        for (dancerId in dancers) {
+          var dancerData = dancers[dancerId]
+          if (dancerData.isDancing) {
+            startDancing(dancerData.id, dancerData.avatarId, dancerData.location)
+          } else {
+            stopDancing(dancerData.id, dancerData.avatarId, dancerData.location)
           }
         }
-        updateDancersView()
       } else if (data.action === 'alert') {
         if (meshNode.isNodeHost()) {
           meshNode._debug('Error: alert received by node host!')
