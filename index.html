@@ -168,17 +168,26 @@ jQuery(function() {
       return
     }
 
-    var isMeshHost = prefs.isHost
+    if (location.hash) {
+      if (location.hash.indexOf('@') >= 0) {
+        var hashSplit = location.hash.split('@', 2)
+        var hashMeshNodeId = hashSplit[0]
+        var hashAnchor = hashSplit[1]
+      }
 
-    if (isMeshHost) {
-      location.hash = prefs.meshNodeId
-    }
-
-    if (!location.hash) {
-      $('body').css('opacity', '0.5')
-      $('body').css('pointer-events', 'none')
-      alert("I'm sorry, you do not have access to this private Turntable2.FM room. Please ask your friends for an invitation link and try again later.")
-      assert(false)
+      if (hashMeshNodeId === prefs.meshNodeId && prefs.isHost) {
+        var isMeshHost = prefs.isHost
+      }
+    } else {
+      if (prefs.isHost) {
+        isMeshHost = true
+        location.hash = prefs.meshNodeId
+      } else {
+        $('body').css('opacity', '0.5')
+        $('body').css('pointer-events', 'none')
+        alert("I'm sorry, you do not have access to this private Turntable2.FM room. Please ask your friends for an invitation link and try again later.")
+        assert(false)
+      }
     }
 
     var baseURL = location.href
@@ -301,6 +310,7 @@ jQuery(function() {
       // TODO: tell everyone else I stopped dancing
 
       if (meshNode.isNodeHost()) {
+        console.log('I get to choose who plays next')
         // only the host chooses who plays next
         do {
           activeDJ += 1
@@ -309,8 +319,10 @@ jQuery(function() {
 
         if (djs[activeDJ] === meshNode.getId()) {
           // I'm the next DJ! I'll pick!
+          console.log('I get to choose which song to play next!')
           pickNewSong()
         } else {
+          console.log('DJ will play next: %s', activeDJ)
           meshNode.sendToMeshNodeId(djs[activeDJ], {
             'action': 'pick',
             'source': meshNode.getId(),
@@ -438,8 +450,10 @@ jQuery(function() {
                         if(err) {
                           meshNode._debug("Error adding song to db: %s", err)
                         } else {
-                          meshNode._debug("Added song to db: %o", metadata)
-                          songdb.addToHeadOfQueue('default', metadata.hash)
+                          meshNode._debug("Will add song to db: %o", metadata)
+                          songdb.addToHeadOfQueue('default', metadata.hash, function() {
+                            meshNode._debug("Added song to db: %o", metadata)
+                          })
                         }
                       }
                     )
@@ -741,7 +755,7 @@ jQuery(function() {
           'action': 'up',
           'source': meshNode.getId(),
           'name': getName(),
-          'avatarId': prefs.dancerLocation,
+          'avatarId': prefs.avatarId,
           'dancerLocation': prefs.dancerLocation
         })
       } else {
@@ -749,7 +763,7 @@ jQuery(function() {
           'action': 'up',
           'source': meshNode.getId(),
           'name': getName(),
-          'avatarId': prefs.dancerLocation,
+          'avatarId': prefs.avatarId,
           'dancerLocation': prefs.dancerLocation
         })
       }

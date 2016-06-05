@@ -35,7 +35,7 @@ function getLocalIP(callback) {
 
 var emit_handler = function(self, eventName, data) {
   if (eventName in self.events) {
-    self.events[eventName](data);
+    self.events[eventName](data)
   } else {
     if (!(eventName in self.stashedEvents)) {
       self.stashedEvents[eventName] = []
