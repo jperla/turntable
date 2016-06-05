@@ -207,7 +207,6 @@ jQuery(function() {
       $('#sharelinkbox').hide()
     }
 
-    var anchorURL = (isMeshHost ? 'http://shielded-woodland-44092.herokuapp.com/' : null)
     meshNode = MeshNode(SimplePeerFactory(),
                             {'isHost': isMeshHost,
                              'name': prefs.name,
@@ -269,7 +268,8 @@ jQuery(function() {
     if (location.hash) {
       hashId = location.hash.split('#', 2)[1]
     }
-    anchorURL = 'http://shielded-woodland-44092.herokuapp.com/'
+
+    var anchorURL = (hashAnchor ? hashAnchor : (isMeshHost ? 'http://shielded-woodland-44092.herokuapp.com/' : null))
     if (isMeshHost) {
       $('#signalingServer').val(anchorURL)
       saveSignalingServer()
