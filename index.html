@@ -237,6 +237,7 @@ jQuery(function() {
 
     var updateDancersView = function() {
       $.each(dancers, function(id, dancerData) {
+        console.log('dancerData: %o', dancerData)
         if (dancerData.isDancing) {
           startDancing(dancerData.id, dancerData.avatarId, dancerData.location)
         } else {
