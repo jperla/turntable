@@ -383,6 +383,8 @@ jQuery(function() {
           'dancers': dancers,
         })
         meshNode.sendToMeshNodeId(peerId, makePlaySongData(currentSong, currentSongElapsedSeconds()))
+      } else {
+        sendDancer(dancers[meshNode.getId()].isDancing)
       }
     })
 
@@ -575,12 +577,19 @@ jQuery(function() {
       } else if (data.action === 'changeName') {
         // TODO: remove slice, use getShortId()
         announceNameChange(data.source.slice(0, 10), data.oldName, data.newName)
-      } else if (data.action === 'up') {
-        addToChat(data.name, "&#x1f44d;")
-        startDancing(data.source, data.avatarId, data.dancerLocation)
-      } else if (data.action === 'down') {
-        addToChat(data.name, "&#x1f44e;")
-        stopDancing(data.source, data.avatarId, data.dancerLocation)
+      } else if (data.action === 'dancer') {
+        if (data.vote !== null) {
+          if (vote) {
+            addToChat(data.name, "&#x1f44d;")
+          } else {
+            addToChat(data.name, "&#x1f44e;")
+          }
+        }
+        if (data.isDancing) {
+          startDancing(data.source, data.avatarId, data.dancerLocation)
+        } else {
+          stopDancing(data.source, data.avatarId, data.dancerLocation)
+        }
       } else if (data.action === 'dj') {
         if (meshNode.isNodeHost()) {
           askToDJ(data.source, data.djIndex)
@@ -813,42 +822,36 @@ jQuery(function() {
       }
     }
 
-    sendUpVote = function() {
+    sendDancer = function(isDancing, vote) {
       if (meshNode.isNodeHost()) {
         meshNode.sendToAllPeers({
-          'action': 'up',
+          'action': 'dancer',
           'source': meshNode.getId(),
           'name': getName(),
+          'isDancing': isDancing,
+          'vote': vote,
           'avatarId': prefs.avatarId,
           'dancerLocation': prefs.dancerLocation
         })
       } else {
         meshNode.broadcastToMeshThroughHost({
-          'action': 'up',
+          'action': 'dancer',
           'source': meshNode.getId(),
           'name': getName(),
+          'isDancing': isDancing,
+          'vote': vote,
           'avatarId': prefs.avatarId,
           'dancerLocation': prefs.dancerLocation
         })
       }
     }
 
+    sendUpVote = function() {
+      sendVote(true, true)
+    }
+
     sendDownVote = function() {
-      if (meshNode.isNodeHost()) {
-        meshNode.sendToAllPeers({
-          'action': 'down',
-          'source': meshNode.getId(),
-          'name': getName(),
-          'dancerLocation': prefs.dancerLocation
-        })
-      } else {
-        meshNode.broadcastToMeshThroughHost({
-          'action': 'down',
-          'source': meshNode.getId(),
-          'name': getName(),
-          'dancerLocation': prefs.dancerLocation
-        })
-      }
+      sendVote(false, false)
     }
 
     var durationText = function(duration) {
