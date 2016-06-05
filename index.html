@@ -605,7 +605,7 @@ jQuery(function() {
 
         // update dancers
         for (dancerId in data.dancers) {
-          var dancerData = dancers[dancerId]
+          var dancerData = data.dancers[dancerId]
           if (dancerData.isDancing) {
             startDancing(dancerData.id, dancerData.avatarId, dancerData.location)
           } else {
@@ -743,6 +743,8 @@ jQuery(function() {
         'source': meshNode.getId(),
         'hash': metadata.hash,
         'type': metadata.type,
+        'title': metadata.id3.tags.title,
+        'artist': metadata.id3.tags.artist,
         'downloadable': $('#allowdownloads').prop('checked'),
       }
     }
