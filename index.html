@@ -404,7 +404,11 @@ jQuery(function() {
         songdb.findSongData(data.hash, function(err, songData) {
           if (songData) {
             meshNode._debug('using cached local data for hash %o', data.hash)
-            playSong(songData)
+            if (songData.hash !== currentSong.hash) {
+              playSong(songData)
+            } else {
+              meshNode._debug('Already playing this song!')
+            }
           } else {
             meshNode._debug('play: %o (err %s)', data, err)
             var downloadPeer = meshNode.addDownloadPeer(meshNode.createPeer(true), data.hash, function(sdp) {
