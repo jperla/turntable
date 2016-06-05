@@ -603,9 +603,13 @@ jQuery(function() {
       } else if (data.action === 'pick') {
         pickNewSong()
       } else if (data.action === 'room') {
-        djs = data.djs
+        if (data.djs) {
+          djs = data.djs
+        }
         updateDJsView()
-        dancers = data.dancers
+        if (data.dancers) {
+          dancers = data.dancers
+        }
         updateDancersView()
       } else if (data.action === 'alert') {
         if (meshNode.isNodeHost()) {
