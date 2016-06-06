@@ -224,8 +224,8 @@ jQuery(function() {
 
     djs[0] = meshNode.getId()
 
-    var setDancerAvatar = function(dancer, avatarId) {
-      dancer.css('background-image', 'url("static/images/' + avatarId + '_back_rock.png")')
+    var setDivAvatar = function(dancer, avatarId, side) {
+      dancer.css('background-image', 'url("static/images/' + avatarId + '_' + side + '.png")')
       var size = avatars[avatarId]
       dancer.css('width', size[0])
       dancer.css('height', size[1])
@@ -245,12 +245,26 @@ jQuery(function() {
       }
       var dancer = $('<div id="dancer-' + base64ToHex(id) + '"></div>')
       dancer.css('position', 'absolute')
-      setDancerAvatar(dancer, avatarId)
+      setDivAvatar(dancer, avatarId, 'back_rock')
       dancer.css('z-index', Math.ceil(loc[1] * 1000))
       dancer.css('left', 400 + (loc[0] * 400))
       dancer.css('top', 600 + (loc[1] * 200))
       $('body').append(dancer)
       return dancerData
+    }
+
+    var makeDJAvatar = function(id, avatarId, djIndex) {
+      var loc = location
+      var dj = $('#dj-' + djIndex)
+      if (dj.length === 0) {
+        dj = $('<div id="dj-' + djIndex + '"></div>')
+      }
+      setDivAvatar(dj, avatarId, 'front_bob')
+      dj.css('position', 'absolute')
+      dj.css('left', 490 + (djIndex * 70))
+      dj.css('top', 350)
+      $('#dj-avatars').append(dj)
+      return dj
     }
 
     var dancer = null
@@ -261,7 +275,7 @@ jQuery(function() {
       }
       dancers[id].isDancing = true
       var dancer = getDancerDiv(dancers[id])
-      setDancerAvatar(dancer, avatarId)
+      setDivAvatar(dancer, avatarId, 'back_rock')
       dancer.css('-webkit-animation', 'playv' + avatarId + ' 1.5s steps(6) infinite, playh' + avatarId + ' 0.25s steps(4) infinite')
     }
 
@@ -635,10 +649,13 @@ jQuery(function() {
 
     var updateDJsView = function() {
       for(var i=0; i<NUMDJS; i++) {
-        if(djs[i] !== null) {
-          $('#record-pile' + i).addClass('active')
-        } else {
+        var djMeshNodeId = djs[i]
+        if(djMeshNodeId === null) {
+          $('#dj-' + i).remove()
           $('#record-pile' + i).removeClass('active')
+        } else {
+          $('#record-pile' + i).addClass('active')
+          var dj = makeDJAvatar(djMeshNodeId, dancers[djMeshNodeId].avatarId, i)
         }
       }
     }
@@ -1056,6 +1073,7 @@ jQuery(function() {
 <div id="lights0Add"></div>
 <div id="lights2Normal"></div>
 <div id="lights0Normal"></div>
+<div id="dj-avatars"></div>
 <div id="dj-table"></div>
 <div id="board"></div>
 <div id="progress"></div>
