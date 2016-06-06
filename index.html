@@ -771,12 +771,16 @@ jQuery(function() {
       })
 
       songdb.findSongMetadata(hash, function(err, songMetadata) {
-        currentSong = songMetadata
-        var d = makePlaySongData(songMetadata)
-        if (meshNode.isNodeHost()) {
-          meshNode.sendToAllPeers(d)
+        if (err) {
+          meshNode._debug('Error finding hash: %s', err)
         } else {
-          meshNode.broadcastToMeshThroughHost(d)
+          currentSong = songMetadata
+          var d = makePlaySongData(songMetadata)
+          if (meshNode.isNodeHost()) {
+            meshNode.sendToAllPeers(d)
+          } else {
+            meshNode.broadcastToMeshThroughHost(d)
+          }
         }
       })
     }
@@ -847,11 +851,11 @@ jQuery(function() {
     }
 
     sendUpVote = function() {
-      sendVote(true, true)
+      sendDancer(true, true)
     }
 
     sendDownVote = function() {
-      sendVote(false, false)
+      sendDancer(false, false)
     }
 
     var durationText = function(duration) {

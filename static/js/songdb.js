@@ -748,7 +748,6 @@ SongDB.prototype.findSongsMetadata = function(hashes, callback) {
 }
 
 SongDB.prototype.findSongMetadata = function(hash, callback) {
-
   var self = this
   self.findSongsMetadata([hash], function(err, metadatas) {
     var metadata = null
