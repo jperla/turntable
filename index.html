@@ -395,6 +395,7 @@ jQuery(function() {
       if (data.action == 'play') {
         meshNode._debug('play: %o', data)
         var startedStreaming = false
+        addToChat('New Song', shortSongString(data))
         songdb.findSongData(data.hash, function(err, songData) {
           if (songData) {
             meshNode._debug('using cached local data for hash %o', data.hash)
@@ -761,6 +762,10 @@ jQuery(function() {
       }
     }
 
+    var shortSongString(d) {
+      return d.title + ' by ' + d.artist
+    }
+
     sendSong = function(hash) {
       songdb.findSongData(hash, function(err, songData) {
         if (songData) {
@@ -774,6 +779,8 @@ jQuery(function() {
         if (err) {
           meshNode._debug('Error finding hash: %s', err)
         } else {
+          addToChat('New Song', shortSongString(songMetadata))
+
           currentSong = songMetadata
           var d = makePlaySongData(songMetadata)
           if (meshNode.isNodeHost()) {
