@@ -100,6 +100,7 @@ function MeshNode(peerFactory, opts) {
   self.hostPeer = null
   self.downloadPeers = {}
   self.uploadPeers = {}
+  self.existingTorrentSeeds = {}
 
   var hexId = base64ToHex(self.id).slice(0, 40)
   console.log('hexId: %s', hexId)
@@ -282,25 +283,31 @@ MeshNode.prototype.addUploadPeer = function(p, hash, rawDataBits, signalFunc, ca
 
   p.on('connect', function () {
     self._debug('CONNECT UPLOAD')
-    self.torrenter.seed(new File([rawDataBits], hash), {}, function(torrent) {
-      self._debug('Generated torrent: %o', torrent)
-      p.sendJSON(torrent.infoHash)
-
+    if (hash in self.existingTorrentSeeds) {
+      var torrent = self.existingTorrentSeeds[hash]
       torrent.addPeer(p)
+    } else {
+      self.torrenter.seed(new File([rawDataBits], hash), {}, function(torrent) {
+        self._debug('Generated torrent: %o', torrent)
+        self.existingTorrentSeeds[hash] = torrent
+        p.sendJSON(torrent.infoHash)
 
-      torrent.on('upload', function (bytes) {
-        //self._torrent_debug('just uploaded: %f', bytes)
-        //self._torrent_debug('total uploaded: %f', torrent.uploaded);
-        self._torrent_debug('numPeers: %i',  torrent.numPeers)
-        //self._torrent_debug('ratio: %f', torrent.ratio)
-        //self._torrent_debug('upload speed: %f', torrent.uploadSpeed)
-        //self._torrent_debug('progress: %f', torrent.progress)
-      })
+        torrent.addPeer(p)
 
-      torrent.on('wire', function (wire, addr) {
-        self._torrent_debug('connected to peer with address ' + addr)
+        torrent.on('upload', function (bytes) {
+          //self._torrent_debug('just uploaded: %f', bytes)
+          //self._torrent_debug('total uploaded: %f', torrent.uploaded);
+          self._torrent_debug('numPeers: %i',  torrent.numPeers)
+          //self._torrent_debug('ratio: %f', torrent.ratio)
+          //self._torrent_debug('upload speed: %f', torrent.uploadSpeed)
+          //self._torrent_debug('progress: %f', torrent.progress)
+        })
+
+        torrent.on('wire', function (wire, addr) {
+          self._torrent_debug('connected to peer with address ' + addr)
+        })
       })
-    })
+    }
   })
 
   p.on('close', function () {
