@@ -21,7 +21,7 @@ var draganddrop = function(dropAreaId, songdb, dragOverCallback, metadataCallbac
       return (prefix + file.name).replace(/[^a-z0-9]/gi,'')
   }
 
-  var process_load = function(file, filename) {
+  var process_load = function(file, filename, callback) {
     console.log("load")
 
     var progressBar = $('#songprogress')
@@ -36,10 +36,18 @@ var draganddrop = function(dropAreaId, songdb, dragOverCallback, metadataCallbac
       function(err, metadata) {
         if (err) {
           console.log('Could not upload that song')
+          if (callback) {
+            callback(err)
+          }
         } else {
           songdb.addToHeadOfQueue('default', metadata.hash, function() {
             meshNode._debug("Did add song to queue: %s %o", metadata.hash, metadata)
-            metadataCallback(metadata)
+            metadataCallback(metadata, function(err) {
+              meshNode._debug("Error in metadata callback: %s %o", metadata.hash, metadata)
+              if (callback) {
+                callback(err)
+              }
+            })
           })
         }
     })
@@ -57,18 +65,37 @@ var draganddrop = function(dropAreaId, songdb, dragOverCallback, metadataCallbac
     evt.stopPropagation()
     evt.preventDefault()
 
+    var iterator = function(array, target, callback) {
+      var i = 0
+      var f
+      f = function(err) {
+        if (err) {
+          console.log('Err on %i (%o): %s', i, array[i], err)
+        }
+        if (i >= array.length) {
+          callback(null)
+        } else {
+          target(i, array[i], f)
+          i += 1
+        }
+      }
+      return f
+    }
+
     var files = evt.dataTransfer.files
     console.log('Dropped: %i total', files.length)
-    for (var i = 0, f; f = files[i]; i++) {
+    iterator(files, function(i, f, callback) {
       console.log('Dropped %i', i)
-      if (!f.type.match('audio.*')) {
+      if (f.type.match('audio.*')) {
+        process_load(f, f.name, callback)
+      } else {
         console.log(f.name + ' is not music: ' + f.type)
         alert("Must be music. Your upload is " + f.type)
-        continue
+        callback("Not an audio file")
       }
-
-      process_load(f, f.name)
-    }
+    }, function() {
+      console.log('Done processing chunk of %i files', files.length)
+    })()
   }
 
   var dropArea = document.getElementById(dropAreaId)

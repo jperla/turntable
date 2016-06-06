@@ -881,7 +881,7 @@ jQuery(function() {
       return min + ':' + secText
     }
 
-    var fillQueue = function(songs) {
+    var fillQueue = function(songs, callback) {
       for (var i=0; i<songs.length; i++) {
         var metadata = songs[i];
         if (metadata) {
@@ -902,15 +902,19 @@ jQuery(function() {
           $('#songqueue').append(song);
         }
       }
+      if (callback) {
+        callback(null)
+      }
     }
 
-    var updateImagesLocal = function(metadata) {
+    var updateImagesLocal = function(metadata, callback) {
       $('#songqueue').empty()
       songdb.queue('default', function(err, full_queue) {
         if (err) {
           console.log("Error reading queue: %s", err)
+          callback(err)
         } else {
-          fillQueue(full_queue)
+          fillQueue(full_queue, callback)
         }
       })
     }
