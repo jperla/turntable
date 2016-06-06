@@ -579,7 +579,7 @@ jQuery(function() {
         // TODO: remove slice, use getShortId()
         announceNameChange(data.source.slice(0, 10), data.oldName, data.newName)
       } else if (data.action === 'dancer') {
-        if (data.vote !== null) {
+        if (data.vote !== undefined && data.vote !== null) {
           if (data.vote) {
             addToChat(data.name, "&#x1f44d;")
           } else {
@@ -785,7 +785,7 @@ jQuery(function() {
         if (err) {
           meshNode._debug('Error finding hash: %s', err)
         } else {
-          addToChat('New Song', shortSongString(songMetadata))
+          addToChat('New Song', shortSongString(songMetadata.id3.tags))
 
           currentSong = songMetadata
           var d = makePlaySongData(songMetadata)
