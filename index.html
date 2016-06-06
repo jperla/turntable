@@ -329,7 +329,7 @@ jQuery(function() {
 
     songEnded = function() {
       stopDancing(prefs.meshNodeId, prefs.avatarId, prefs.dancerLocation)
-      // TODO: tell everyone else I stopped dancing
+      sendDancer(false)
 
       if (meshNode.isNodeHost()) {
         console.log('I get to choose who plays next')
