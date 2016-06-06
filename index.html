@@ -725,6 +725,12 @@ jQuery(function() {
           'source': meshNode.getId(),
           'text': 'Sorry! That spot is already taken',
         })
+      } else if (djs.indexOf(meshNodeId) !== -1) {
+        meshNode.sendToMeshNodeId(meshNodeId, {
+          'action': 'alert',
+          'source': meshNode.getId(),
+          'text': "Hey! You're already a DJ!",
+        })
       } else {
         djs[djIndex] = meshNodeId
       }
@@ -762,7 +768,7 @@ jQuery(function() {
       }
     }
 
-    var shortSongString(d) {
+    var shortSongString = function(d) {
       return d.title + ' by ' + d.artist
     }
 
