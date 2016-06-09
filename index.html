@@ -277,6 +277,9 @@ jQuery(function() {
       }
       dancers[id].isDancing = true
       var dancer = getDancerDiv(dancers[id])
+      if (djs.indexOf(id) >= 0) {
+        dancer.hide()
+      }
       setDivAvatar(dancer, avatarId, 'back_rock')
       dancer.css('-webkit-animation', 'playv' + avatarId + ' 1.5s steps(6) infinite, playh' + avatarId + ' 0.25s steps(4) infinite')
     }
@@ -287,6 +290,9 @@ jQuery(function() {
       }
       dancers[id].isDancing = false
       var dancer = getDancerDiv(dancers[id])
+      if (djs.indexOf(id) >= 0) {
+        dancer.hide()
+      }
       dancer.css('animation', 'none')
     }
 
@@ -658,6 +664,8 @@ jQuery(function() {
         } else {
           $('#record-pile' + i).addClass('active')
           var dj = makeDJAvatar(djMeshNodeId, dancers[djMeshNodeId].avatarId, i)
+          var dancer = getDancerDiv({'id': djMeshNodeId})
+          dancer.hide()
         }
       }
     }
@@ -1008,8 +1016,8 @@ jQuery(function() {
       var size = avatars[avatarId]
       var myAvatar = $('#myAvatar')
       myAvatar.css('background-image', 'url("static/images/' + avatarId + '_back_rock.png")')
-      myAvatar.css('width', size[0])
-      myAvatar.css('height', size[1])
+      myAvatar.css('width', size['back_rock'][0])
+      myAvatar.css('height', size['back_rock'][1])
     }
 
     $('#avatarPicker').bind('change', function() {
