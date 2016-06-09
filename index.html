@@ -155,8 +155,10 @@ var currentSong = null
 var dancers = {}
 
 var avatars = {
-  '8': [92, 119],
-  '2031': [158, 130],
+  '8': {'back_rock': [92, 119],
+        'front_bob': [86, 156]},
+  '2031': {'back_rock': [158, 130],
+           'front_bob': [142, 123]},
 }
 
 var NUMDJS = 5
@@ -227,8 +229,8 @@ jQuery(function() {
     var setDivAvatar = function(dancer, avatarId, side) {
       dancer.css('background-image', 'url("static/images/' + avatarId + '_' + side + '.png")')
       var size = avatars[avatarId]
-      dancer.css('width', size[0])
-      dancer.css('height', size[1])
+      dancer.css('width', size[side][0])
+      dancer.css('height', size[side][1])
     }
 
     var getDancerDiv = function(dancerData) {
