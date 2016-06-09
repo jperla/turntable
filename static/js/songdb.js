@@ -79,15 +79,15 @@ function SongDB(opts) {
   self.queues = {'default': []}
 
   self.storeQueues = localforage.createInstance({
-    name: self.id + "-queues5"
+    name: self.id + "-queues6"
   })
 
   self.storeMetadata = localforage.createInstance({
-    name: self.id + "-metadata2"
+    name: self.id + "-metadata3"
   })
 
   self.storeData = localforage.createInstance({
-    name: self.id + "-data2"
+    name: self.id + "-data3"
   })
 }
 
