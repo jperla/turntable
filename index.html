@@ -71,10 +71,11 @@ defaults = {
   'allowDownloads': true,
   'name': 'Mary Johnson',
   'avatarId': '2031',
-  'isHost': false,
+  'isHost': true,
 }
 
 var preferencesStore
+PREFSKEY = "public"
 
 var ensurePrivateKeysExist = function(prefs, callback) {
   if (!prefs.keys) {
@@ -102,8 +103,6 @@ var initialize = function(songdb, callback) {
   preferencesStore = localforage.createInstance({
     name: "preferences"
   })
-  PREFSKEY = "public"
-
   preferencesStore.getItem(PREFSKEY, function(err, prefs) {
     if (err) { prefs = {} }
 
@@ -193,11 +192,13 @@ jQuery(function() {
       return
     }
 
-    if (location.pathname == 'makemeahost') {
+    if (location.hash == 'makemeahost') {
       updatePrefs({'isHost': true}, function() {
         window.location.href = '/'
       })
     }
+
+    console.log('found prefs: %o', prefs)
 
     var isMeshHost
     var hashMeshNodeId
