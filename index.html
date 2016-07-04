@@ -169,9 +169,34 @@ assert(djs.length === NUMDJS)
 jQuery(function() {
   var songdb = SongDB({'id': 'ttfm'})
   initialize(songdb, function(err, prefs) {
+
+    var updatePrefs = function(d, callback) {
+      // save name change locally
+      preferencesStore.getItem(PREFSKEY).then(function(p) {
+        p = merge_options(p, d)
+        preferencesStore.setItem(PREFSKEY, p).then(function() {
+          console.log("Saved prefs: %o", p)
+          prefs = merge_options(prefs, p)
+          if (callback) {
+            callback(null)
+          }
+        }).catch(function(err) {
+          console.log("Failed to save prefs: %s", err)
+        })
+      }).catch(function(err) {
+        console.log("Failed to get prefs: %s", err)
+      })
+    }
+
     if (err) {
       console.log("Error initializing and upgrading songdb: %s", err)
       return
+    }
+
+    if (location.pathname == 'makemeahost') {
+      updatePrefs({'isHost': true}, function() {
+        window.location.href = '/'
+      })
     }
 
     var isMeshHost
@@ -692,24 +717,6 @@ jQuery(function() {
       scrollToBottomOfChat()
     }
 
-    var updatePrefs = function(d, callback) {
-      // save name change locally
-      preferencesStore.getItem(PREFSKEY).then(function(p) {
-        p = merge_options(p, d)
-        preferencesStore.setItem(PREFSKEY, p).then(function() {
-          console.log("Saved prefs: %o", p)
-          prefs = merge_options(prefs, p)
-          if (callback) {
-            callback(null)
-          }
-        }).catch(function(err) {
-          console.log("Failed to save prefs: %s", err)
-        })
-      }).catch(function(err) {
-        console.log("Failed to get prefs: %s", err)
-      })
-    }
-
     $('#name').change(function(e) {
       var oldName = currentName
       currentName = $('#name').val()
@@ -1146,6 +1153,9 @@ jQuery(function() {
                     word-wrap: break-word;
                   }
                 </style>
+                Bug? Please email <a href="mailto:ttfm2@jperla.com">ttfm2@jperla.com</a>
+                <br />
+                <br />
                 <input type="text" id="signalingServer" value=""></input>
                 <button type="submit" onclick="return saveSignalingServer();">Save Anchor URL</button>
                 <br />
